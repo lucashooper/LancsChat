@@ -1,0 +1,14 @@
+{
+  "name": "lancschat",
+  "version": "1.0.0",
+  "description": "Anonymous chat for Lancaster University students",
+  "scripts": {
+    "server": "cd server && node index.js",
+    "client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "install-all": "cd server && npm install && cd ../client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

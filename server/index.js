@@ -1,0 +1,870 @@
+require('dotenv').config();
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+const db = require('./db');
+
+const app = express();
+const server = http.createServer(app);
+
+const AVATAR_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
+  '#F0B27A', '#82E0AA', '#F1948A', '#AED6F1', '#D7BDE2',
+];
+
+const ADMIN_EMAIL = 'l.j.hooper@lancaster.ac.uk';
+
+const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
+const REPORT_REASONS = ['spam', 'harassment', 'inappropriate', 'other'];
+
+// In-memory rate limit state: 5 messages / 10s, cooldown 10s
+const rateLimitState = new Map();
+
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || 'http://localhost:5174',
+    methods: ['GET', 'POST'],
+  },
+});
+
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5174' }));
+app.use(express.json());
+
+// Decode Supabase JWT (we trust the token since it comes from Supabase)
+function decodeSupabaseToken(token) {
+  try {
+    // If we have the JWT secret, verify properly
+    if (process.env.SUPABASE_JWT_SECRET && process.env.SUPABASE_JWT_SECRET !== 'your-supabase-jwt-secret') {
+      return jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+    }
+    // Otherwise decode without verification (dev mode)
+    const decoded = jwt.decode(token);
+    if (!decoded || !decoded.sub) throw new Error('Invalid token');
+    return decoded;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Ensure user exists in our local DB (sync from Supabase)
+function ensureLocalUser(supabaseUserId, email, displayName, avatarColor) {
+  let user = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, has_seen_intro FROM users WHERE id = ?').get(supabaseUserId);
+  if (!user) {
+    const name = displayName || 'Anonymous';
+    const color = avatarColor || AVATAR_COLORS[supabaseUserId.charCodeAt(0) % AVATAR_COLORS.length];
+    const safeEmail = (email || '').toLowerCase() || `${supabaseUserId}@unknown.local`;
+    const isAdmin = safeEmail === ADMIN_EMAIL ? 1 : 0;
+    db.prepare(`
+      INSERT INTO users (id, email, password_hash, display_name, avatar_color, is_verified, is_admin)
+      VALUES (?, ?, '', ?, ?, 1, ?)
+    `).run(supabaseUserId, safeEmail, name, color, isAdmin);
+    user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
+  } else {
+    const safeEmail = (email || '').toLowerCase();
+    if (safeEmail && user.email !== safeEmail) {
+      db.prepare('UPDATE users SET email = ? WHERE id = ?').run(safeEmail, supabaseUserId);
+      user.email = safeEmail;
+    }
+    if (user.email && user.email.toLowerCase() === ADMIN_EMAIL && !user.is_admin) {
+      db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(supabaseUserId);
+      user.is_admin = 1;
+    }
+  }
+  return user;
+}
+
+function getReactionSummary(messageIds, viewerUserId) {
+  if (!messageIds.length) return new Map();
+
+  const placeholders = messageIds.map(() => '?').join(',');
+  const counts = db.prepare(
+    `SELECT message_id, emoji, COUNT(*) as count
+     FROM message_reactions
+     WHERE message_id IN (${placeholders})
+     GROUP BY message_id, emoji`
+  ).all(...messageIds);
+
+  const mine = db.prepare(
+    `SELECT message_id, emoji
+     FROM message_reactions
+     WHERE message_id IN (${placeholders}) AND user_id = ?`
+  ).all(...messageIds, viewerUserId);
+
+  const mineSet = new Set(mine.map((r) => `${r.message_id}::${r.emoji}`));
+  const map = new Map();
+
+  for (const row of counts) {
+    if (!map.has(row.message_id)) map.set(row.message_id, []);
+    map.get(row.message_id).push({
+      emoji: row.emoji,
+      count: row.count,
+      reactedByMe: mineSet.has(`${row.message_id}::${row.emoji}`),
+    });
+  }
+
+  return map;
+}
+
+function attachRepliesAndReactions(messages, viewerUserId) {
+  const messageIds = messages.map((m) => m.id);
+  const reactionsMap = getReactionSummary(messageIds, viewerUserId);
+
+  const replyIds = Array.from(
+    new Set(messages.map((m) => m.reply_to_message_id).filter(Boolean))
+  );
+  let replyMap = new Map();
+  if (replyIds.length) {
+    const placeholders = replyIds.map(() => '?').join(',');
+    const rows = db.prepare(
+      `SELECT m.id, m.content, m.is_deleted, m.sender_id, u.display_name
+       FROM messages m
+       JOIN users u ON m.sender_id = u.id
+       WHERE m.id IN (${placeholders})`
+    ).all(...replyIds);
+
+    replyMap = new Map(
+      rows.map((r) => [
+        r.id,
+        {
+          id: r.id,
+          sender_id: r.sender_id,
+          display_name: r.display_name,
+          content: r.is_deleted ? '' : r.content,
+          is_deleted: !!r.is_deleted,
+        },
+      ])
+    );
+  }
+
+  return messages.map((m) => ({
+    ...m,
+    content: m.is_deleted ? '' : m.content,
+    reactions: reactionsMap.get(m.id) || [],
+    reply_to: m.reply_to_message_id ? (replyMap.get(m.reply_to_message_id) || null) : null,
+  }));
+}
+
+function canSendMessage(userId) {
+  const now = Math.floor(Date.now() / 1000);
+  const state = rateLimitState.get(userId) || { timestamps: [], cooldownUntil: 0 };
+  if (state.cooldownUntil && now < state.cooldownUntil) {
+    return { ok: false, retryAfter: state.cooldownUntil - now };
+  }
+
+  state.timestamps = state.timestamps.filter((t) => now - t < 10);
+  if (state.timestamps.length >= 5) {
+    state.cooldownUntil = now + 10;
+    state.timestamps = [];
+    rateLimitState.set(userId, state);
+    return { ok: false, retryAfter: 10 };
+  }
+
+  state.timestamps.push(now);
+  rateLimitState.set(userId, state);
+  return { ok: true };
+}
+
+// Auth middleware for REST endpoints
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'No token' });
+
+  const token = authHeader.split(' ')[1];
+  const decoded = decodeSupabaseToken(token);
+  if (!decoded) return res.status(401).json({ error: 'Invalid token' });
+
+  req.userId = decoded.sub;
+  req.userMeta = decoded.user_metadata || {};
+  req.decoded = decoded;
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  const row = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(req.userId);
+  if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin only' });
+  next();
+}
+
+// Get all rooms
+app.get('/api/rooms', (req, res) => {
+  const rooms = db.prepare(`
+    SELECT * FROM rooms
+    ORDER BY
+      is_default DESC,
+      CASE id
+        WHEN 'general' THEN 0
+        WHEN 'memes' THEN 1
+        ELSE 2
+      END,
+      name ASC
+  `).all();
+  res.json(rooms);
+});
+
+// Get current user server-side flags
+app.get('/api/me', authMiddleware, (req, res) => {
+  const meta = req.userMeta || {};
+  const email = (req.decoded && req.decoded.email) || meta.email || '';
+  const u = ensureLocalUser(req.userId, email, meta.display_name, meta.avatar_color);
+  const full = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, banned_reason, has_seen_intro, created_at, last_seen FROM users WHERE id = ?').get(u.id);
+  res.json({
+    id: full.id,
+    email: full.email,
+    displayName: full.display_name,
+    avatarColor: full.avatar_color,
+    isAdmin: !!full.is_admin,
+    isBanned: !!full.is_banned,
+    bannedReason: full.banned_reason || null,
+    hasSeenIntro: !!full.has_seen_intro,
+    createdAt: full.created_at,
+    lastSeen: full.last_seen,
+  });
+});
+
+app.post('/api/me/intro-seen', authMiddleware, (req, res) => {
+  db.prepare('UPDATE users SET has_seen_intro = 1 WHERE id = ?').run(req.userId);
+  res.json({ ok: true });
+});
+
+// Get email by username for login
+app.get('/api/email-by-username', (req, res) => {
+  const { username } = req.query;
+  if (!username) {
+    return res.status(400).json({ error: 'Username required' });
+  }
+  const user = db.prepare('SELECT email FROM users WHERE display_name = ? COLLATE NOCASE').get(username);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  res.json({ email: user.email });
+});
+
+// Search users by display name (for starting new DMs)
+app.get('/api/users/search', authMiddleware, (req, res) => {
+  const { q } = req.query;
+  if (!q || typeof q !== 'string' || q.trim().length < 2) {
+    return res.json([]);
+  }
+  const query = `%${q.trim()}%`;
+  const users = db.prepare(`
+    SELECT id, display_name, avatar_color
+    FROM users
+    WHERE display_name LIKE ? COLLATE NOCASE
+      AND id != ?
+      AND is_banned = 0
+    LIMIT 20
+  `).all(query, req.userId);
+  res.json(users.map(u => ({ id: u.id, displayName: u.display_name, avatarColor: u.avatar_color })));
+});
+
+// Submit unban request
+app.post('/api/unban-request', authMiddleware, (req, res) => {
+  const { message } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ error: 'Message required' });
+  }
+  
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  if (!u.is_banned) {
+    return res.status(400).json({ error: 'User is not banned' });
+  }
+
+  db.prepare(`
+    INSERT INTO unban_requests (user_id, display_name, message, created_at)
+    VALUES (?, ?, ?, unixepoch())
+  `).run(req.userId, u.display_name, message.trim());
+
+  res.json({ ok: true });
+});
+
+// Get messages for a room
+app.get('/api/rooms/:roomId/messages', authMiddleware, (req, res) => {
+  const { roomId } = req.params;
+  const limit = parseInt(req.query.limit) || 50;
+  const before = req.query.before;
+
+  let query = `
+    SELECT m.id, m.content, m.created_at, m.sender_id,
+           m.reply_to_message_id, m.is_deleted,
+           u.display_name, u.avatar_color
+    FROM messages m
+    JOIN users u ON m.sender_id = u.id
+    WHERE m.room_id = ? AND m.message_type = 'room'
+  `;
+  const params = [roomId];
+
+  if (before) {
+    query += ' AND m.created_at < ?';
+    params.push(parseInt(before));
+  }
+
+  query += ' ORDER BY m.created_at DESC LIMIT ?';
+  params.push(limit);
+
+  const messages = db.prepare(query).all(...params);
+  const enriched = attachRepliesAndReactions(messages.reverse(), req.userId);
+  res.json(enriched);
+});
+
+// Get DM conversations for a user
+app.get('/api/dms', authMiddleware, (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const conversations = db.prepare(`
+      SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
+             CASE WHEN dc.user1_id = ? THEN u2.display_name ELSE u1.display_name END as other_name,
+             CASE WHEN dc.user1_id = ? THEN u2.avatar_color ELSE u1.avatar_color END as other_color,
+             CASE WHEN dc.user1_id = ? THEN dc.user2_id ELSE dc.user1_id END as other_id,
+             (SELECT content FROM messages WHERE message_type = 'dm' AND
+               ((sender_id = dc.user1_id AND recipient_id = dc.user2_id) OR
+                (sender_id = dc.user2_id AND recipient_id = dc.user1_id))
+              ORDER BY created_at DESC LIMIT 1) as last_message,
+             (SELECT created_at FROM messages WHERE message_type = 'dm' AND
+               ((sender_id = dc.user1_id AND recipient_id = dc.user2_id) OR
+                (sender_id = dc.user2_id AND recipient_id = dc.user1_id))
+              ORDER BY created_at DESC LIMIT 1) as last_message_at
+      FROM dm_conversations dc
+      JOIN users u1 ON dc.user1_id = u1.id
+      JOIN users u2 ON dc.user2_id = u2.id
+      WHERE (dc.user1_id = ? OR dc.user2_id = ?)
+        AND EXISTS (
+          SELECT 1 FROM messages WHERE message_type = 'dm' AND
+            ((sender_id = dc.user1_id AND recipient_id = dc.user2_id) OR
+             (sender_id = dc.user2_id AND recipient_id = dc.user1_id))
+        )
+      ORDER BY last_message_at DESC
+    `).all(userId, userId, userId, userId, userId);
+
+    res.json(conversations);
+  } catch (err) {
+    console.error('DMs error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete DM conversation
+app.delete('/api/dms/:conversationId', authMiddleware, (req, res) => {
+  try {
+    const userId = req.userId;
+    const { conversationId } = req.params;
+    
+    const convo = db.prepare('SELECT * FROM dm_conversations WHERE id = ? AND (user1_id = ? OR user2_id = ?)').get(conversationId, userId, userId);
+    if (!convo) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    db.prepare('DELETE FROM dm_conversations WHERE id = ?').run(conversationId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delete DM error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get DM messages
+app.get('/api/dms/:recipientId/messages', authMiddleware, (req, res) => {
+  try {
+    const userId = req.userId;
+    const { recipientId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+
+    const messages = db.prepare(`
+      SELECT m.id, m.content, m.created_at, m.sender_id,
+             m.reply_to_message_id, m.is_deleted,
+             u.display_name, u.avatar_color
+      FROM messages m
+      JOIN users u ON m.sender_id = u.id
+      WHERE m.message_type = 'dm'
+        AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))
+      ORDER BY m.created_at DESC
+      LIMIT ?
+    `).all(userId, recipientId, recipientId, userId, limit);
+
+    const enriched = attachRepliesAndReactions(messages.reverse(), userId);
+    res.json(enriched);
+  } catch (err) {
+    console.error('DM messages error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Admin APIs
+app.get('/api/admin/users', authMiddleware, requireAdmin, (req, res) => {
+  const users = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, banned_at, banned_reason, created_at, last_seen FROM users ORDER BY created_at DESC').all();
+  res.json(users.map((u) => ({
+    id: u.id,
+    email: u.email,
+    displayName: u.display_name,
+    avatarColor: u.avatar_color,
+    isAdmin: !!u.is_admin,
+    isBanned: !!u.is_banned,
+    bannedAt: u.banned_at || null,
+    bannedReason: u.banned_reason || null,
+    createdAt: u.created_at,
+    lastSeen: u.last_seen,
+  })));
+});
+
+app.post('/api/admin/ban', authMiddleware, requireAdmin, (req, res) => {
+  const { userId, reason } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  db.prepare('UPDATE users SET is_banned = 1, banned_at = unixepoch(), banned_reason = ? WHERE id = ?').run(reason || 'Banned by admin', userId);
+
+  for (const [, s] of io.sockets.sockets) {
+    if (s.user && s.user.id === userId) {
+      s.disconnect(true);
+    }
+  }
+
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/unban', authMiddleware, requireAdmin, (req, res) => {
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  db.prepare('UPDATE users SET is_banned = 0, banned_at = NULL, banned_reason = NULL WHERE id = ?').run(userId);
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/reports', authMiddleware, requireAdmin, (req, res) => {
+  const reports = db.prepare(`
+    SELECT r.id, r.report_type, r.reason, r.created_at, r.resolved_at, r.resolved_by,
+           r.reporter_id, ur.display_name as reporter_name,
+           r.reported_user_id, uu.display_name as reported_name,
+           r.message_id,
+           m.content as message_content, m.is_deleted as message_is_deleted, m.room_id, m.recipient_id, m.message_type, m.created_at as message_created_at
+    FROM message_reports r
+    JOIN users ur ON r.reporter_id = ur.id
+    JOIN users uu ON r.reported_user_id = uu.id
+    JOIN messages m ON r.message_id = m.id
+    ORDER BY r.created_at DESC
+  `).all();
+
+  res.json(reports.map((r) => ({
+    id: r.id,
+    reportType: r.report_type || 'message',
+    reason: r.reason,
+    createdAt: r.created_at,
+    resolvedAt: r.resolved_at || null,
+    resolvedBy: r.resolved_by || null,
+    reporter: { id: r.reporter_id, displayName: r.reporter_name },
+    reportedUser: { id: r.reported_user_id, displayName: r.reported_name },
+    message: {
+      id: r.message_id,
+      content: r.message_is_deleted ? '' : r.message_content,
+      isDeleted: !!r.message_is_deleted,
+      roomId: r.room_id || null,
+      recipientId: r.recipient_id || null,
+      type: r.message_type,
+      createdAt: r.message_created_at,
+    },
+  })));
+});
+
+app.post('/api/admin/reports/:reportId/resolve', authMiddleware, requireAdmin, (req, res) => {
+  const { reportId } = req.params;
+  db.prepare('UPDATE message_reports SET resolved_at = unixepoch(), resolved_by = ? WHERE id = ?').run(req.userId, reportId);
+  res.json({ ok: true });
+});
+
+app.get('/api/admin/deleted-messages', authMiddleware, (req, res) => {
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  if (!u.is_admin) return res.status(403).json({ error: 'Forbidden' });
+
+  const rows = db.prepare(`
+    SELECT dm.id, dm.message_id, dm.deleted_by, dm.deleted_at, dm.reason, dm.original_content,
+           dm.room_id, dm.recipient_id, dm.message_type, dm.message_created_at,
+           u.id as sender_id, u.display_name as sender_name
+    FROM deleted_messages dm
+    JOIN users u ON dm.sender_id = u.id
+    ORDER BY dm.deleted_at DESC
+  `).all();
+
+  res.json(rows.map((r) => ({
+    id: r.id,
+    messageId: r.message_id,
+    deletedBy: r.deleted_by,
+    deletedAt: r.deleted_at,
+    reason: r.reason,
+    originalContent: r.original_content,
+    sender: { id: r.sender_id, displayName: r.sender_name },
+    roomId: r.room_id,
+    recipientId: r.recipient_id,
+    type: r.message_type,
+    messageCreatedAt: r.message_created_at,
+  })));
+});
+
+// Admin: get all feedback from Supabase
+app.get('/api/admin/feedback', authMiddleware, async (req, res) => {
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  if (!u.is_admin) return res.status(403).json({ error: 'Forbidden' });
+
+  try {
+    const { createClient } = require('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL || '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
+    );
+    
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Supabase feedback fetch error:', error);
+      return res.json([]);
+    }
+    
+    res.json(data.map(f => ({
+      id: f.id,
+      userId: f.user_id,
+      displayName: f.display_name,
+      type: f.type,
+      content: f.content,
+      createdAt: f.created_at,
+    })));
+  } catch (err) {
+    console.error('Feedback fetch error:', err);
+    res.json([]);
+  }
+});
+
+// Admin: get all unban requests
+app.get('/api/admin/unban-requests', authMiddleware, (req, res) => {
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  if (!u.is_admin) return res.status(403).json({ error: 'Forbidden' });
+
+  const rows = db.prepare(`
+    SELECT id, user_id, display_name, message, created_at, resolved_at, resolved_by
+    FROM unban_requests
+    ORDER BY created_at DESC
+  `).all();
+
+  res.json(rows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    displayName: r.display_name,
+    message: r.message,
+    createdAt: r.created_at,
+    resolvedAt: r.resolved_at,
+    resolvedBy: r.resolved_by,
+  })));
+});
+
+// Admin: resolve unban request (approve)
+app.post('/api/admin/unban-requests/:requestId/approve', authMiddleware, requireAdmin, (req, res) => {
+  const { requestId } = req.params;
+  const request = db.prepare('SELECT user_id FROM unban_requests WHERE id = ?').get(requestId);
+  if (!request) return res.status(404).json({ error: 'Request not found' });
+
+  db.prepare('UPDATE users SET is_banned = 0, banned_at = NULL, banned_reason = NULL WHERE id = ?').run(request.user_id);
+  db.prepare('UPDATE unban_requests SET resolved_at = unixepoch(), resolved_by = ? WHERE id = ?').run(req.userId, requestId);
+  
+  res.json({ ok: true });
+});
+
+// Admin: resolve unban request (deny)
+app.post('/api/admin/unban-requests/:requestId/deny', authMiddleware, requireAdmin, (req, res) => {
+  const { requestId } = req.params;
+  db.prepare('UPDATE unban_requests SET resolved_at = unixepoch(), resolved_by = ? WHERE id = ?').run(req.userId, requestId);
+  res.json({ ok: true });
+});
+
+// Get online users count
+app.get('/api/online', (req, res) => {
+  res.json({ count: io.engine.clientsCount });
+});
+
+// Socket.IO authentication middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) return next(new Error('Authentication required'));
+
+  const decoded = decodeSupabaseToken(token);
+  if (!decoded || !decoded.sub) return next(new Error('Invalid token'));
+
+  const meta = decoded.user_metadata || {};
+  const email = decoded.email || meta.email || '';
+  const user = ensureLocalUser(decoded.sub, email, meta.display_name, meta.avatar_color);
+  const banRow = db.prepare('SELECT is_banned FROM users WHERE id = ?').get(user.id);
+  if (banRow && banRow.is_banned) return next(new Error('BANNED'));
+
+  socket.user = user;
+  next();
+});
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(`✅ ${socket.user.display_name} connected`);
+
+  // Update last seen
+  db.prepare('UPDATE users SET last_seen = unixepoch() WHERE id = ?').run(socket.user.id);
+
+  // Join a room
+  socket.on('join_room', (roomId) => {
+    socket.join(`room:${roomId}`);
+    console.log(`${socket.user.display_name} joined room: ${roomId}`);
+  });
+
+  socket.on('toggle_reaction', (data) => {
+    const { messageId, emoji } = data || {};
+    if (!messageId || !emoji || !ALLOWED_REACTIONS.includes(emoji)) return;
+
+    const msg = db.prepare('SELECT id, room_id, sender_id, recipient_id, message_type, is_deleted FROM messages WHERE id = ?').get(messageId);
+    if (!msg || msg.is_deleted) return;
+
+    const exists = db.prepare('SELECT 1 FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?').get(messageId, socket.user.id, emoji);
+    if (exists) {
+      db.prepare('DELETE FROM message_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?').run(messageId, socket.user.id, emoji);
+    } else {
+      db.prepare('INSERT OR IGNORE INTO message_reactions (message_id, user_id, emoji) VALUES (?, ?, ?)').run(messageId, socket.user.id, emoji);
+    }
+
+    const reactions = Array.from(getReactionSummary([messageId], socket.user.id).get(messageId) || []);
+
+    if (msg.message_type === 'room') {
+      io.to(`room:${msg.room_id}`).emit('reaction_updated', { messageId, reactions });
+      return;
+    }
+
+    // DM: send to both
+    socket.emit('reaction_updated', { messageId, reactions });
+    for (const [, s] of io.sockets.sockets) {
+      if (s.user && (s.user.id === msg.sender_id || s.user.id === msg.recipient_id)) {
+        s.emit('reaction_updated', { messageId, reactions });
+      }
+    }
+  });
+
+  socket.on('delete_message', (data) => {
+    const { messageId, reason } = data || {};
+    if (!messageId) return;
+
+    const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(messageId);
+    if (!msg || msg.is_deleted) return;
+
+    const actor = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(socket.user.id);
+    const isAdmin = !!(actor && actor.is_admin);
+    const isAuthor = msg.sender_id === socket.user.id;
+    if (!isAdmin && !isAuthor) return;
+
+    const now = Math.floor(Date.now() / 1000);
+
+    db.prepare('UPDATE messages SET is_deleted = 1, deleted_at = ?, deleted_by = ? WHERE id = ?').run(now, socket.user.id, messageId);
+    db.prepare(`
+      INSERT INTO deleted_messages_log (id, message_id, deleted_by, deleted_at, reason, original_content, sender_id, room_id, recipient_id, message_type, message_created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(uuidv4(), messageId, socket.user.id, now, reason || null, msg.content, msg.sender_id, msg.room_id || null, msg.recipient_id || null, msg.message_type, msg.created_at);
+
+    if (msg.message_type === 'room') {
+      io.to(`room:${msg.room_id}`).emit('message_deleted', { messageId, deletedBy: socket.user.id, deletedAt: now });
+      return;
+    }
+
+    socket.emit('message_deleted', { messageId, deletedBy: socket.user.id, deletedAt: now });
+    for (const [, s] of io.sockets.sockets) {
+      if (s.user && (s.user.id === msg.sender_id || s.user.id === msg.recipient_id)) {
+        s.emit('message_deleted', { messageId, deletedBy: socket.user.id, deletedAt: now });
+      }
+    }
+  });
+
+  socket.on('report_message', (data) => {
+    const { messageId, reason, type } = data || {};
+    if (!messageId || !reason || !REPORT_REASONS.includes(reason)) return;
+
+    const msg = db.prepare('SELECT id, sender_id FROM messages WHERE id = ?').get(messageId);
+    if (!msg) return;
+
+    const reportType = type === 'user' ? 'user' : 'message';
+
+    const reportId = uuidv4();
+    db.prepare(
+      'INSERT INTO message_reports (id, reporter_id, reported_user_id, message_id, report_type, reason) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(reportId, socket.user.id, msg.sender_id, messageId, reportType, reason);
+
+    socket.emit('report_submitted', { ok: true, reportId });
+  });
+
+  // Leave a room
+  socket.on('leave_room', (roomId) => {
+    socket.leave(`room:${roomId}`);
+  });
+
+  // Send message to a room
+  socket.on('room_message', (data) => {
+    const { roomId, content, replyToMessageId } = data;
+    if (!content || !content.trim() || !roomId) return;
+
+    const banRow = db.prepare('SELECT is_banned FROM users WHERE id = ?').get(socket.user.id);
+    if (banRow && banRow.is_banned) {
+      socket.emit('send_error', { code: 'BANNED', message: 'Your account has been suspended' });
+      return;
+    }
+
+    const sendCheck = canSendMessage(socket.user.id);
+    if (!sendCheck.ok) {
+      socket.emit('send_error', { code: 'RATE_LIMIT', message: "You're sending messages too fast, slow down", retryAfter: sendCheck.retryAfter });
+      return;
+    }
+
+    const messageId = uuidv4();
+    const now = Math.floor(Date.now() / 1000);
+
+    let replyTo = null;
+    if (replyToMessageId) {
+      const r = db.prepare(
+        `SELECT m.id, m.content, m.is_deleted, m.sender_id, u.display_name
+         FROM messages m JOIN users u ON m.sender_id = u.id
+         WHERE m.id = ? AND m.room_id = ? AND m.message_type = 'room'`
+      ).get(replyToMessageId, roomId);
+      if (r) {
+        replyTo = {
+          id: r.id,
+          sender_id: r.sender_id,
+          display_name: r.display_name,
+          content: r.is_deleted ? '' : r.content,
+          is_deleted: !!r.is_deleted,
+        };
+      }
+    }
+
+    db.prepare(`
+      INSERT INTO messages (id, room_id, sender_id, content, message_type, created_at, reply_to_message_id)
+      VALUES (?, ?, ?, ?, 'room', ?, ?)
+    `).run(messageId, roomId, socket.user.id, content.trim(), now, replyTo ? replyTo.id : null);
+
+    const message = {
+      id: messageId,
+      content: content.trim(),
+      created_at: now,
+      sender_id: socket.user.id,
+      reply_to_message_id: replyTo ? replyTo.id : null,
+      reply_to: replyTo,
+      is_deleted: 0,
+      reactions: [],
+      display_name: socket.user.display_name,
+      avatar_color: socket.user.avatar_color,
+    };
+
+    io.to(`room:${roomId}`).emit('new_message', { roomId, message });
+  });
+
+  // Send a DM
+  socket.on('dm_message', (data) => {
+    const { recipientId, content, replyToMessageId } = data;
+    if (!content || !content.trim() || !recipientId) return;
+
+    const banRow = db.prepare('SELECT is_banned FROM users WHERE id = ?').get(socket.user.id);
+    if (banRow && banRow.is_banned) {
+      socket.emit('send_error', { code: 'BANNED', message: 'Your account has been suspended' });
+      return;
+    }
+
+    const sendCheck = canSendMessage(socket.user.id);
+    if (!sendCheck.ok) {
+      socket.emit('send_error', { code: 'RATE_LIMIT', message: "You're sending messages too fast, slow down", retryAfter: sendCheck.retryAfter });
+      return;
+    }
+
+    const userId = socket.user.id;
+    const messageId = uuidv4();
+    const now = Math.floor(Date.now() / 1000);
+
+    let replyTo = null;
+    if (replyToMessageId) {
+      const r = db.prepare(
+        `SELECT m.id, m.content, m.is_deleted, m.sender_id, u.display_name
+         FROM messages m JOIN users u ON m.sender_id = u.id
+         WHERE m.id = ? AND m.message_type = 'dm'
+           AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))`
+      ).get(replyToMessageId, userId, recipientId, recipientId, userId);
+      if (r) {
+        replyTo = {
+          id: r.id,
+          sender_id: r.sender_id,
+          display_name: r.display_name,
+          content: r.is_deleted ? '' : r.content,
+          is_deleted: !!r.is_deleted,
+        };
+      }
+    }
+
+    // Ensure DM conversation exists
+    const [u1, u2] = [userId, recipientId].sort();
+    const existingConvo = db.prepare('SELECT id FROM dm_conversations WHERE user1_id = ? AND user2_id = ?').get(u1, u2);
+
+    if (!existingConvo) {
+      const convoId = uuidv4();
+      db.prepare('INSERT INTO dm_conversations (id, user1_id, user2_id) VALUES (?, ?, ?)').run(convoId, u1, u2);
+    }
+
+    db.prepare(`
+      INSERT INTO messages (id, sender_id, recipient_id, content, message_type, created_at, reply_to_message_id)
+      VALUES (?, ?, ?, ?, 'dm', ?, ?)
+    `).run(messageId, userId, recipientId, content.trim(), now, replyTo ? replyTo.id : null);
+
+    const message = {
+      id: messageId,
+      content: content.trim(),
+      created_at: now,
+      sender_id: userId,
+      reply_to_message_id: replyTo ? replyTo.id : null,
+      reply_to: replyTo,
+      is_deleted: 0,
+      reactions: [],
+      display_name: socket.user.display_name,
+      avatar_color: socket.user.avatar_color,
+    };
+
+    // Send to both users
+    socket.emit('new_dm', { recipientId, message });
+    for (const [, s] of io.sockets.sockets) {
+      if (s.user && s.user.id === recipientId) {
+        s.emit('new_dm', { recipientId: userId, message });
+      }
+    }
+  });
+
+  // Start DM with a user from a room
+  socket.on('start_dm', (data) => {
+    const { targetUserId } = data;
+    if (!targetUserId || targetUserId === socket.user.id) return;
+
+    const targetUser = db.prepare('SELECT id, display_name, avatar_color FROM users WHERE id = ?').get(targetUserId);
+    if (!targetUser) return;
+
+    const [u1, u2] = [socket.user.id, targetUserId].sort();
+    let convo = db.prepare('SELECT id FROM dm_conversations WHERE user1_id = ? AND user2_id = ?').get(u1, u2);
+
+    if (!convo) {
+      const convoId = uuidv4();
+      db.prepare('INSERT INTO dm_conversations (id, user1_id, user2_id) VALUES (?, ?, ?)').run(convoId, u1, u2);
+      convo = { id: convoId };
+    }
+
+    socket.emit('dm_started', {
+      conversationId: convo.id,
+      other_id: targetUser.id,
+      other_name: targetUser.display_name,
+      other_color: targetUser.avatar_color,
+    });
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`❌ ${socket.user.display_name} disconnected`);
+    db.prepare('UPDATE users SET last_seen = unixepoch() WHERE id = ?').run(socket.user.id);
+  });
+});
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`\n🚀 LancsChat server running on http://localhost:${PORT}\n`);
+});
