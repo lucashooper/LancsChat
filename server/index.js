@@ -51,19 +51,32 @@ function decodeSupabaseToken(token) {
 }
 
 // Ensure user exists in our local DB (sync from Supabase)
-function ensureLocalUser(supabaseUserId, email, displayName, avatarColor) {
-  let user = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, has_seen_intro FROM users WHERE id = ?').get(supabaseUserId);
+function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatarUrl) {
+  let user = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin, is_banned, has_seen_intro FROM users WHERE id = ?').get(supabaseUserId);
   if (!user) {
     const name = displayName || 'Anonymous';
     const color = avatarColor || AVATAR_COLORS[supabaseUserId.charCodeAt(0) % AVATAR_COLORS.length];
     const safeEmail = (email || '').toLowerCase() || `${supabaseUserId}@unknown.local`;
     const isAdmin = safeEmail === ADMIN_EMAIL ? 1 : 0;
     db.prepare(`
-      INSERT INTO users (id, email, password_hash, display_name, avatar_color, is_verified, is_admin)
-      VALUES (?, ?, '', ?, ?, 1, ?)
-    `).run(supabaseUserId, safeEmail, name, color, isAdmin);
-    user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
+      INSERT INTO users (id, email, password_hash, display_name, avatar_color, avatar_url, is_verified, is_admin)
+      VALUES (?, ?, '', ?, ?, ?, 1, ?)
+    `).run(supabaseUserId, safeEmail, name, color, avatarUrl || null, isAdmin);
+    user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: avatarUrl || null, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
   } else {
+    // Update display_name, avatar_color, and avatar_url from Supabase metadata
+    if (displayName && displayName !== user.display_name) {
+      db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, supabaseUserId);
+      user.display_name = displayName;
+    }
+    if (avatarColor && avatarColor !== user.avatar_color) {
+      db.prepare('UPDATE users SET avatar_color = ? WHERE id = ?').run(avatarColor, supabaseUserId);
+      user.avatar_color = avatarColor;
+    }
+    if (avatarUrl !== undefined && avatarUrl !== user.avatar_url) {
+      db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, supabaseUserId);
+      user.avatar_url = avatarUrl;
+    }
     const safeEmail = (email || '').toLowerCase();
     if (safeEmail && user.email !== safeEmail) {
       db.prepare('UPDATE users SET email = ? WHERE id = ?').run(safeEmail, supabaseUserId);
@@ -242,7 +255,7 @@ app.get('/api/rooms', (req, res) => {
 app.get('/api/me', authMiddleware, (req, res) => {
   const meta = req.userMeta || {};
   const email = (req.decoded && req.decoded.email) || meta.email || '';
-  const u = ensureLocalUser(req.userId, email, meta.display_name, meta.avatar_color);
+  const u = ensureLocalUser(req.userId, email, meta.display_name, meta.avatar_color, meta.avatar_url);
   const full = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, banned_reason, has_seen_intro, created_at, last_seen FROM users WHERE id = ?').get(u.id);
   res.json({
     id: full.id,
@@ -301,7 +314,7 @@ app.post('/api/unban-request', authMiddleware, (req, res) => {
     return res.status(400).json({ error: 'Message required' });
   }
   
-  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color, req.userMeta.avatar_url);
   if (!u.is_banned) {
     return res.status(400).json({ error: 'User is not banned' });
   }
@@ -549,7 +562,7 @@ app.post('/api/admin/reports/:reportId/resolve', authMiddleware, requireAdmin, (
 });
 
 app.get('/api/admin/deleted-messages', authMiddleware, (req, res) => {
-  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color, req.userMeta.avatar_url);
   if (!u.is_admin) return res.status(403).json({ error: 'Forbidden' });
 
   const rows = db.prepare(`
@@ -578,7 +591,7 @@ app.get('/api/admin/deleted-messages', authMiddleware, (req, res) => {
 
 // Admin: get all feedback from Supabase
 app.get('/api/admin/feedback', authMiddleware, async (req, res) => {
-  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color, req.userMeta.avatar_url);
   if (!u.is_admin) return res.status(403).json({ error: 'Forbidden' });
 
   try {
@@ -614,7 +627,7 @@ app.get('/api/admin/feedback', authMiddleware, async (req, res) => {
 
 // Admin: get all unban requests
 app.get('/api/admin/unban-requests', authMiddleware, (req, res) => {
-  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color);
+  const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color, req.userMeta.avatar_url);
   if (!u.is_admin) return res.status(403).json({ error: 'Forbidden' });
 
   const rows = db.prepare(`
@@ -668,7 +681,7 @@ io.use((socket, next) => {
 
   const meta = decoded.user_metadata || {};
   const email = decoded.email || meta.email || '';
-  const user = ensureLocalUser(decoded.sub, email, meta.display_name, meta.avatar_color);
+  const user = ensureLocalUser(decoded.sub, email, meta.display_name, meta.avatar_color, meta.avatar_url);
   const banRow = db.prepare('SELECT is_banned FROM users WHERE id = ?').get(user.id);
   if (banRow && banRow.is_banned) return next(new Error('BANNED'));
 

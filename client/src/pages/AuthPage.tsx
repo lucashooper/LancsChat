@@ -514,60 +514,86 @@ export default function AuthPage() {
         )}
 
         {step === 'forgot-password' && (
-          <div className="authCard">
-            <h1 className="authTitle">Reset your password</h1>
-            <p className="authText">
-              Enter your email address and we'll send you a link to reset your password.
-            </p>
+          <form onSubmit={handleForgotPassword}>
+            {error && <div style={errorStyle}>{error}</div>}
 
-            <form onSubmit={handleForgotPassword} className="authForm">
-              {error && <div className="authError">{error}</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
+              <input
+                type="email"
+                placeholder="University email (@lancaster.ac.uk)"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                required
+                style={inputStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
+              />
+            </div>
 
-              <div className="authField">
-                <label className="authLabel">Email address</label>
-                <input
-                  type="email"
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  className="authInput"
-                  placeholder="you@lancaster.ac.uk"
-                  required
-                  disabled={loading}
-                />
-              </div>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{ ...primaryBtnStyle, opacity: loading ? 0.6 : 1 }}
+              onMouseEnter={(e) => { if (!loading) e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
+            >
+              {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Send reset link'}
+            </button>
 
-              <button type="submit" className="authBtn" disabled={loading}>
-                {loading ? <Loader2 className="authBtnIcon authBtnIconSpin" /> : null}
-                Send reset link
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStep('login')}
-                className="authLinkBtn"
-              >
-                Back to login
-              </button>
-            </form>
-          </div>
+            <button
+              type="button"
+              onClick={() => { setStep('login'); setError(''); }}
+              style={{
+                width: '100%',
+                padding: '10px',
+                background: 'none',
+                border: 'none',
+                color: '#737373',
+                fontSize: '13px',
+                cursor: 'pointer',
+                marginTop: '12px',
+                fontFamily: 'inherit',
+              }}
+            >
+              Back to login
+            </button>
+          </form>
         )}
 
         {step === 'reset-sent' && (
-          <div className="authCard">
-            <h1 className="authTitle">Check your email</h1>
-            <p className="authText">
-              We sent a password reset link to <strong>{resetEmail}</strong>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              backgroundColor: '#0095f6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
+              fontSize: '24px',
+            }}>
+              ✉️
+            </div>
+            <h2 style={{ color: '#fafafa', fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
+              Check your email
+            </h2>
+            <p style={{ color: '#a8a8a8', fontSize: '14px', lineHeight: '22px', marginBottom: '8px' }}>
+              We sent a password reset link to
             </p>
-            <p className="authText">
-              Click the link in the email to reset your password.
+            <p style={{ color: '#fafafa', fontSize: '14px', fontWeight: 500, marginBottom: '24px' }}>
+              {resetEmail}
+            </p>
+            <p style={{ color: '#737373', fontSize: '13px', lineHeight: '20px', marginBottom: '24px' }}>
+              Click the link in the email to reset your password. You can close this page.
             </p>
             <button
-              type="button"
-              onClick={() => setStep('login')}
-              className="authBtn"
-              style={{ marginTop: '24px' }}
+              onClick={() => { setStep('login'); setError(''); }}
+              style={primaryBtnStyle}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
             >
-              Back to login
+              Go to Log In
             </button>
           </div>
         )}
