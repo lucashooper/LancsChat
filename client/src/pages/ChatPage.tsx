@@ -16,6 +16,10 @@ interface Room {
   name: string;
   description: string;
   icon: string;
+  last_message?: string | null;
+  last_message_at?: number | null;
+  last_message_sender?: string | null;
+  has_unread?: boolean;
 }
 
 interface Message {
@@ -25,6 +29,7 @@ interface Message {
   sender_id: string;
   display_name: string;
   avatar_color: string;
+  avatar_url?: string | null;
   reply_to_message_id?: string | null;
   reply_to?: ReplyMeta | null;
   is_deleted?: number | boolean;
@@ -50,8 +55,11 @@ interface DMConversation {
   other_id: string;
   other_name: string;
   other_color: string;
-  last_message: string | null;
-  last_message_at: number | null;
+  other_avatar_url?: string | null;
+  last_message?: string | null;
+  last_message_at?: number | null;
+  last_message_sender?: string | null;
+  has_unread?: boolean;
 }
 
 type NavTab = 'rooms' | 'dms' | 'settings';
@@ -639,13 +647,25 @@ export default function ChatPage() {
                 <button
                   key={room.id}
                   onClick={() => openRoom(room)}
-                  className={`listItem ${selectedRoom?.id === room.id && chatOpen ? 'isActive' : ''}`}
+                  className={`listItem ${selectedRoom?.id === room.id && chatOpen ? 'isActive' : ''} ${room.has_unread ? 'hasUnread' : ''}`}
                 >
-                  <span className="roomIcon">{room.icon}</span>
+                  <div className="roomIcon">{room.icon}</div>
                   <div className="listItemMain">
                     <p className="listItemTitle">{room.name}</p>
-                    <p className="listItemDesc">{room.description}</p>
+                    <p className="listItemDesc">
+                      {room.last_message ? (
+                        <>
+                          {room.last_message_sender && (
+                            <span className="lastMsgSender">
+                              {room.last_message_sender === user?.displayName ? 'You' : room.last_message_sender}:{' '}
+                            </span>
+                          )}
+                          {room.last_message}
+                        </>
+                      ) : room.description}
+                    </p>
                   </div>
+                  {room.has_unread && <div className="unreadDot" />}
                 </button>
               ))}
             </div>
@@ -663,25 +683,37 @@ export default function ChatPage() {
                 dmConversations.map((convo) => (
                   <div key={convo.id} className="dmConvoRow">
                     <button
-                      onClick={() => openDM(convo)}
+                      onClick={() => void openDM(convo)}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setDmContextMenu({ conversationId: convo.id, x: e.clientX, y: e.clientY });
                       }}
-                      className={`listItem ${selectedDM?.other_id === convo.other_id && chatOpen ? 'isActive' : ''}`}
+                      className={`listItem ${selectedDM?.other_id === convo.other_id && chatOpen ? 'isActive' : ''} ${convo.has_unread ? 'hasUnread' : ''}`}
                     >
-                      <div
-                        className="dmAvatar"
-                        style={{ backgroundColor: convo.other_color }}
-                      >
-                        {convo.other_name?.charAt(0)}
-                      </div>
+                      {convo.other_avatar_url ? (
+                        <img
+                          src={convo.other_avatar_url}
+                          alt={convo.other_name}
+                          className="dmAvatar dmAvatarImg"
+                        />
+                      ) : (
+                        <div
+                          className="dmAvatar"
+                          style={{ backgroundColor: convo.other_color }}
+                        >
+                          {convo.other_name?.charAt(0)}
+                        </div>
+                      )}
                       <div className="listItemMain">
                         <p className="listItemTitle">{convo.other_name}</p>
                         {convo.last_message && (
-                          <p className="listItemDesc">{convo.last_message}</p>
+                          <p className="listItemDesc">
+                            {convo.last_message_sender === user?.id ? 'You: ' : ''}
+                            {convo.last_message}
+                          </p>
                         )}
                       </div>
+                      {convo.has_unread && <div className="unreadDot" />}
                     </button>
                     <button
                       className="dmDeleteBtn"
@@ -751,14 +783,24 @@ export default function ChatPage() {
                     onTouchMove={clearLongPress}
                   >
                     {showAvatar ? (
-                      <button
-                        onClick={() => !isOwn && activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
-                        className={`msgAvatarBtn ${!isOwn && activeTab === 'rooms' ? 'isClickable' : ''}`}
-                        style={{ backgroundColor: msg.avatar_color }}
-                        title={!isOwn ? `DM ${msg.display_name}` : undefined}
-                      >
-                        {msg.display_name?.charAt(0)}
-                      </button>
+                      msg.avatar_url ? (
+                        <button
+                          onClick={() => !isOwn && activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
+                          className={`msgAvatarBtn ${!isOwn && activeTab === 'rooms' ? 'isClickable' : ''}`}
+                          title={!isOwn ? `DM ${msg.display_name}` : undefined}
+                        >
+                          <img src={msg.avatar_url} alt={msg.display_name} className="msgAvatarImg" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => !isOwn && activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
+                          className={`msgAvatarBtn ${!isOwn && activeTab === 'rooms' ? 'isClickable' : ''}`}
+                          style={{ backgroundColor: msg.avatar_color }}
+                          title={!isOwn ? `DM ${msg.display_name}` : undefined}
+                        >
+                          {msg.display_name?.charAt(0)}
+                        </button>
+                      )
                     ) : (
                       <div className="msgAvatarSpacer" />
                     )}
@@ -848,6 +890,7 @@ export default function ChatPage() {
                   </div>
                 );
               })}
+              </div>
               <div ref={messagesEndRef} />
             </div>
 

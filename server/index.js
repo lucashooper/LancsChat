@@ -191,18 +191,51 @@ function requireAdmin(req, res, next) {
 
 // Get all rooms
 app.get('/api/rooms', (req, res) => {
+  const authHeader = req.headers.authorization;
+  let userId = null;
+  
+  if (authHeader) {
+    const token = authHeader.split(' ')[1];
+    const decoded = decodeSupabaseToken(token);
+    if (decoded) userId = decoded.sub;
+  }
+
   const rooms = db.prepare(`
     SELECT * FROM rooms
     ORDER BY
-      is_default DESC,
-      CASE id
-        WHEN 'general' THEN 0
-        WHEN 'memes' THEN 1
-        ELSE 2
-      END,
+      CASE WHEN is_default = 1 THEN 0 ELSE 1 END,
       name ASC
   `).all();
-  res.json(rooms);
+
+  if (!userId) {
+    return res.json(rooms);
+  }
+
+  // Get last message and unread status for each room
+  const enriched = rooms.map((room) => {
+    const lastMsg = db.prepare(`
+      SELECT m.content, m.created_at, m.sender_id, u.display_name
+      FROM messages m
+      JOIN users u ON m.sender_id = u.id
+      WHERE m.room_id = ? AND m.message_type = 'room' AND m.is_deleted = 0
+      ORDER BY m.created_at DESC
+      LIMIT 1
+    `).get(room.id);
+
+    const lastRead = db.prepare('SELECT last_read_at FROM room_last_read WHERE user_id = ? AND room_id = ?').get(userId, room.id);
+    const lastReadAt = lastRead ? lastRead.last_read_at : 0;
+    const hasUnread = lastMsg && lastMsg.created_at > lastReadAt && lastMsg.sender_id !== userId;
+
+    return {
+      ...room,
+      last_message: lastMsg ? lastMsg.content : null,
+      last_message_at: lastMsg ? lastMsg.created_at : null,
+      last_message_sender: lastMsg ? lastMsg.display_name : null,
+      has_unread: hasUnread,
+    };
+  });
+
+  res.json(enriched);
 });
 
 // Get current user server-side flags
@@ -316,33 +349,76 @@ app.get('/api/dms', authMiddleware, (req, res) => {
     const userId = req.userId;
 
     const conversations = db.prepare(`
-      SELECT dc.id, dc.user1_id, dc.user2_id, dc.created_at,
-             CASE WHEN dc.user1_id = ? THEN u2.display_name ELSE u1.display_name END as other_name,
-             CASE WHEN dc.user1_id = ? THEN u2.avatar_color ELSE u1.avatar_color END as other_color,
-             CASE WHEN dc.user1_id = ? THEN dc.user2_id ELSE dc.user1_id END as other_id,
-             (SELECT content FROM messages WHERE message_type = 'dm' AND
-               ((sender_id = dc.user1_id AND recipient_id = dc.user2_id) OR
-                (sender_id = dc.user2_id AND recipient_id = dc.user1_id))
-              ORDER BY created_at DESC LIMIT 1) as last_message,
-             (SELECT created_at FROM messages WHERE message_type = 'dm' AND
-               ((sender_id = dc.user1_id AND recipient_id = dc.user2_id) OR
-                (sender_id = dc.user2_id AND recipient_id = dc.user1_id))
-              ORDER BY created_at DESC LIMIT 1) as last_message_at
+      SELECT 
+        dc.id,
+        dc.user1_id,
+        dc.user2_id,
+        dc.last_message,
+        dc.last_message_at,
+        dc.last_message_sender,
+        dc.user1_last_read,
+        dc.user2_last_read,
+        CASE WHEN dc.user1_id = ? THEN dc.user2_id ELSE dc.user1_id END as other_id,
+        CASE WHEN dc.user1_id = ? THEN u2.display_name ELSE u1.display_name END as other_name,
+        CASE WHEN dc.user1_id = ? THEN u2.avatar_color ELSE u1.avatar_color END as other_color,
+        CASE WHEN dc.user1_id = ? THEN u2.avatar_url ELSE u1.avatar_url END as other_avatar_url
       FROM dm_conversations dc
       JOIN users u1 ON dc.user1_id = u1.id
       JOIN users u2 ON dc.user2_id = u2.id
-      WHERE (dc.user1_id = ? OR dc.user2_id = ?)
-        AND EXISTS (
-          SELECT 1 FROM messages WHERE message_type = 'dm' AND
-            ((sender_id = dc.user1_id AND recipient_id = dc.user2_id) OR
-             (sender_id = dc.user2_id AND recipient_id = dc.user1_id))
-        )
-      ORDER BY last_message_at DESC
+      WHERE dc.user1_id = ? OR dc.user2_id = ?
+      ORDER BY dc.last_message_at DESC NULLS LAST, dc.created_at DESC
     `).all(userId, userId, userId, userId, userId);
 
-    res.json(conversations);
+    const result = conversations.map((c) => {
+      const isUser1 = c.user1_id === userId;
+      const lastRead = isUser1 ? (c.user1_last_read || 0) : (c.user2_last_read || 0);
+      const hasUnread = c.last_message_at && c.last_message_at > lastRead && c.last_message_sender !== userId;
+      
+      return {
+        id: c.id,
+        other_id: c.other_id,
+        other_name: c.other_name,
+        other_color: c.other_color,
+        other_avatar_url: c.other_avatar_url,
+        last_message: c.last_message,
+        last_message_at: c.last_message_at,
+        last_message_sender: c.last_message_sender,
+        has_unread: hasUnread,
+      };
+    });
+
+    res.json(result);
   } catch (err) {
     console.error('DMs error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Mark DM conversation as read
+app.post('/api/dms/:conversationId/read', authMiddleware, (req, res) => {
+  try {
+    const userId = req.userId;
+    const { conversationId } = req.params;
+    
+    const convo = db.prepare('SELECT user1_id, user2_id FROM dm_conversations WHERE id = ?').get(conversationId);
+    if (!convo) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+    
+    const isUser1 = convo.user1_id === userId;
+    const isUser2 = convo.user2_id === userId;
+    
+    if (!isUser1 && !isUser2) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    const now = Math.floor(Date.now() / 1000);
+    const column = isUser1 ? 'user1_last_read' : 'user2_last_read';
+    
+    db.prepare(`UPDATE dm_conversations SET ${column} = ? WHERE id = ?`).run(now, conversationId);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Mark DM read error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -611,6 +687,14 @@ io.on('connection', (socket) => {
   socket.on('join_room', (roomId) => {
     socket.join(`room:${roomId}`);
     console.log(`${socket.user.display_name} joined room: ${roomId}`);
+    
+    // Mark room as read
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare(`
+      INSERT INTO room_last_read (user_id, room_id, last_read_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(user_id, room_id) DO UPDATE SET last_read_at = ?
+    `).run(socket.user.id, roomId, now, now);
   });
 
   socket.on('toggle_reaction', (data) => {
@@ -811,6 +895,14 @@ io.on('connection', (socket) => {
       VALUES (?, ?, ?, ?, 'dm', ?, ?)
     `).run(messageId, userId, recipientId, content.trim(), now, replyTo ? replyTo.id : null);
 
+    // Update last_message in dm_conversations
+    const convoId = existingConvo ? existingConvo.id : db.prepare('SELECT id FROM dm_conversations WHERE user1_id = ? AND user2_id = ?').get(u1, u2).id;
+    db.prepare(`
+      UPDATE dm_conversations 
+      SET last_message = ?, last_message_at = ?, last_message_sender = ?
+      WHERE id = ?
+    `).run(content.trim().substring(0, 100), now, userId, convoId);
+
     const message = {
       id: messageId,
       content: content.trim(),
@@ -838,7 +930,7 @@ io.on('connection', (socket) => {
     const { targetUserId } = data;
     if (!targetUserId || targetUserId === socket.user.id) return;
 
-    const targetUser = db.prepare('SELECT id, display_name, avatar_color FROM users WHERE id = ?').get(targetUserId);
+    const targetUser = db.prepare('SELECT id, display_name, avatar_color, avatar_url FROM users WHERE id = ?').get(targetUserId);
     if (!targetUser) return;
 
     const [u1, u2] = [socket.user.id, targetUserId].sort();
@@ -850,11 +942,18 @@ io.on('connection', (socket) => {
       convo = { id: convoId };
     }
 
+    // Mark as read when opening
+    const now = Math.floor(Date.now() / 1000);
+    const isUser1 = u1 === socket.user.id;
+    const column = isUser1 ? 'user1_last_read' : 'user2_last_read';
+    db.prepare(`UPDATE dm_conversations SET ${column} = ? WHERE id = ?`).run(now, convo.id);
+
     socket.emit('dm_started', {
       conversationId: convo.id,
       other_id: targetUser.id,
       other_name: targetUser.display_name,
       other_color: targetUser.avatar_color,
+      other_avatar_url: targetUser.avatar_url,
     });
   });
 

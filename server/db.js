@@ -74,11 +74,18 @@ addColumnIfMissing('users', 'is_banned INTEGER DEFAULT 0');
 addColumnIfMissing('users', 'banned_at INTEGER');
 addColumnIfMissing('users', 'banned_reason TEXT');
 addColumnIfMissing('users', 'has_seen_intro INTEGER DEFAULT 0');
+addColumnIfMissing('users', 'avatar_url TEXT');
 
 addColumnIfMissing('messages', 'reply_to_message_id TEXT');
 addColumnIfMissing('messages', 'is_deleted INTEGER DEFAULT 0');
 addColumnIfMissing('messages', 'deleted_at INTEGER');
 addColumnIfMissing('messages', 'deleted_by TEXT');
+
+addColumnIfMissing('dm_conversations', 'last_message TEXT');
+addColumnIfMissing('dm_conversations', 'last_message_at INTEGER');
+addColumnIfMissing('dm_conversations', 'last_message_sender TEXT');
+addColumnIfMissing('dm_conversations', 'user1_last_read INTEGER DEFAULT 0');
+addColumnIfMissing('dm_conversations', 'user2_last_read INTEGER DEFAULT 0');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS message_reactions (
@@ -146,6 +153,17 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_unban_requests_user ON unban_requests(user_id);
   CREATE INDEX IF NOT EXISTS idx_unban_requests_created ON unban_requests(created_at);
+
+  CREATE TABLE IF NOT EXISTS room_last_read (
+    user_id TEXT NOT NULL,
+    room_id TEXT NOT NULL,
+    last_read_at INTEGER DEFAULT 0,
+    PRIMARY KEY (user_id, room_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_room_last_read_user ON room_last_read(user_id);
 `);
 
 addColumnIfMissing('message_reports', "report_type TEXT DEFAULT 'message'");

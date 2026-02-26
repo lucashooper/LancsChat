@@ -238,7 +238,15 @@
 }
 
 .listItem.isActive {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.listItem.hasUnread {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.listItem.hasUnread:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .roomIcon {
@@ -281,16 +289,24 @@
 }
 
 .dmAvatar {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
+  background: #333;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
   color: #fff;
-  font-weight: 700;
-  font-size: 14px;
   flex-shrink: 0;
+}
+
+.dmAvatarImg {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
 }
 
 .emptyList {
@@ -308,6 +324,32 @@
   color: rgba(255, 255, 255, 0.2);
   font-size: 14px;
   margin-top: 8px;
+}
+
+.rep.listItemDesc {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.lastMsgSender {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.unreadDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #0095f6;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* ─── MAIN CHAT PANEL ─── */
@@ -367,18 +409,27 @@
 }
 
 .msgAvatarBtn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
+  border: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
   color: #fff;
-  font-size: 12px;
-  font-weight: 700;
   flex-shrink: 0;
-  border: 0;
-  background: transparent;
+  cursor: default;
+  transition: all 0.15s ease;
+  overflow: hidden;
+  padding: 0;
+}
+
+.msgAvatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .msgAvatarBtn.isClickable {
@@ -391,7 +442,7 @@
 }
 
 .msgAvatarSpacer {
-  width: 36px;
+  width: 32px;
   flex-shrink: 0;
 }
 

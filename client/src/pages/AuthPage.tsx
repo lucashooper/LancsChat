@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
-type AuthStep = 'welcome' | 'register' | 'check-email' | 'login';
+type AuthStep = 'welcome' | 'register' | 'check-email' | 'login' | 'forgot-password' | 'reset-sent';
 
 const ALLOWED_DOMAIN = 'lancaster.ac.uk';
 void ALLOWED_DOMAIN;
@@ -15,6 +15,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +74,26 @@ export default function AuthPage() {
         password,
       });
       if (signInError) throw signInError;
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        resetEmail.toLowerCase().trim(),
+        {
+          redirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/reset-password`,
+        }
+      );
+      if (resetError) throw resetError;
+      setStep('reset-sent');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -421,6 +442,26 @@ export default function AuthPage() {
                 {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Log In'}
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setResetEmail(email);
+                  setStep('forgot-password');
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  background: 'none',
+                  border: 'none',
+                  color: '#737373',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Forgot password?
+              </button>
+
               <div style={dividerStyle}>
                 <div style={dividerLineStyle} />
                 <span style={{ color: '#737373', fontSize: '13px', fontWeight: 500 }}>OR</span>
@@ -459,6 +500,77 @@ export default function AuthPage() {
           Your identity is always anonymous.<br />
           We only verify you're a Lancaster student.
         </p>
+
+        {step === 'check-email' && (
+          <div className="authCard">
+            <h1 className="authTitle">Check your email</h1>
+            <p className="authText">
+              We sent a confirmation link to <strong>{email}</strong>
+            </p>
+            <p className="authText">
+              Click the link in the email to verify your account and start chatting.
+            </p>
+          </div>
+        )}
+
+        {step === 'forgot-password' && (
+          <div className="authCard">
+            <h1 className="authTitle">Reset your password</h1>
+            <p className="authText">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+
+            <form onSubmit={handleForgotPassword} className="authForm">
+              {error && <div className="authError">{error}</div>}
+
+              <div className="authField">
+                <label className="authLabel">Email address</label>
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="authInput"
+                  placeholder="you@lancaster.ac.uk"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <button type="submit" className="authBtn" disabled={loading}>
+                {loading ? <Loader2 className="authBtnIcon authBtnIconSpin" /> : null}
+                Send reset link
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStep('login')}
+                className="authLinkBtn"
+              >
+                Back to login
+              </button>
+            </form>
+          </div>
+        )}
+
+        {step === 'reset-sent' && (
+          <div className="authCard">
+            <h1 className="authTitle">Check your email</h1>
+            <p className="authText">
+              We sent a password reset link to <strong>{resetEmail}</strong>
+            </p>
+            <p className="authText">
+              Click the link in the email to reset your password.
+            </p>
+            <button
+              type="button"
+              onClick={() => setStep('login')}
+              className="authBtn"
+              style={{ marginTop: '24px' }}
+            >
+              Back to login
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
