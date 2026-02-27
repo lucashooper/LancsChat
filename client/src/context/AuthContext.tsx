@@ -53,8 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hydrateServerFlags = async (token: string, base: User) => {
     try {
+      console.log('[AuthContext] Fetching /me from server...');
       const me = await api('/me', { token });
-      setUser({
+      console.log('[AuthContext] Server /me response:', me);
+      const finalUser = {
         ...base,
         email: me.email || base.email,
         displayName: me.displayName || base.displayName,
@@ -63,18 +65,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isBanned: !!me.isBanned,
         bannedReason: me.bannedReason || null,
         hasSeenIntro: !!me.hasSeenIntro,
-      });
-    } catch {
+      };
+      console.log('[AuthContext] Setting final user:', finalUser);
+      setUser(finalUser);
+    } catch (err) {
+      console.error('[AuthContext] Failed to hydrate from server:', err);
       setUser(base);
     }
   };
 
   const refreshUser = async () => {
+    console.log('[AuthContext] refreshUser called');
     const { data } = await supabase.auth.getSession();
+    console.log('[AuthContext] Session data:', data.session?.user?.user_metadata);
     if (data.session?.user) {
       setSession(data.session);
       const base = buildUser(data.session.user);
+      console.log('[AuthContext] Built user from session:', base);
       await hydrateServerFlags(data.session.access_token, base);
+      console.log('[AuthContext] User hydrated from server');
     }
   };
 

@@ -54,6 +54,7 @@ function decodeSupabaseToken(token) {
 function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatarUrl) {
   let user = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin, is_banned, has_seen_intro FROM users WHERE id = ?').get(supabaseUserId);
   if (!user) {
+    console.log('[ensureLocalUser] Creating new user:', supabaseUserId);
     const name = displayName || 'Anonymous';
     const color = avatarColor || AVATAR_COLORS[supabaseUserId.charCodeAt(0) % AVATAR_COLORS.length];
     const safeEmail = (email || '').toLowerCase() || `${supabaseUserId}@unknown.local`;
@@ -64,16 +65,20 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
     `).run(supabaseUserId, safeEmail, name, color, avatarUrl || null, isAdmin);
     user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: avatarUrl || null, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
   } else {
+    console.log('[ensureLocalUser] Existing user found:', { current: user.display_name, new: displayName });
     // Update display_name, avatar_color, and avatar_url from Supabase metadata
     if (displayName && displayName !== user.display_name) {
+      console.log('[ensureLocalUser] Updating display_name from', user.display_name, 'to', displayName);
       db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, supabaseUserId);
       user.display_name = displayName;
     }
     if (avatarColor && avatarColor !== user.avatar_color) {
+      console.log('[ensureLocalUser] Updating avatar_color');
       db.prepare('UPDATE users SET avatar_color = ? WHERE id = ?').run(avatarColor, supabaseUserId);
       user.avatar_color = avatarColor;
     }
     if (avatarUrl !== undefined && avatarUrl !== user.avatar_url) {
+      console.log('[ensureLocalUser] Updating avatar_url');
       db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, supabaseUserId);
       user.avatar_url = avatarUrl;
     }
@@ -255,20 +260,27 @@ app.get('/api/rooms', (req, res) => {
 app.get('/api/me', authMiddleware, (req, res) => {
   const meta = req.userMeta || {};
   const email = (req.decoded && req.decoded.email) || meta.email || '';
+  console.log('[/api/me] Request from user:', req.userId);
+  console.log('[/api/me] Metadata:', { display_name: meta.display_name, avatar_color: meta.avatar_color, avatar_url: meta.avatar_url });
   const u = ensureLocalUser(req.userId, email, meta.display_name, meta.avatar_color, meta.avatar_url);
-  const full = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, banned_reason, has_seen_intro, created_at, last_seen FROM users WHERE id = ?').get(u.id);
-  res.json({
+  console.log('[/api/me] ensureLocalUser returned:', u);
+  const full = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin, is_banned, banned_reason, has_seen_intro, created_at, last_seen FROM users WHERE id = ?').get(u.id);
+  console.log('[/api/me] Full user from DB:', full);
+  const response = {
     id: full.id,
     email: full.email,
     displayName: full.display_name,
     avatarColor: full.avatar_color,
+    avatarUrl: full.avatar_url,
     isAdmin: !!full.is_admin,
     isBanned: !!full.is_banned,
     bannedReason: full.banned_reason || null,
     hasSeenIntro: !!full.has_seen_intro,
     createdAt: full.created_at,
     lastSeen: full.last_seen,
-  });
+  };
+  console.log('[/api/me] Sending response:', response);
+  res.json(response);
 });
 
 app.post('/api/me/intro-seen', authMiddleware, (req, res) => {

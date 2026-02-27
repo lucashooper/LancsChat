@@ -428,6 +428,19 @@ export default function ChatPage() {
     }
   };
 
+  const loadRooms = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await api('/rooms', { token });
+      console.log('[ChatPage] Loaded rooms:', data);
+      const unreadRooms = data.filter((r: Room) => r.has_unread);
+      console.log('[ChatPage] Rooms with unread messages:', unreadRooms.map((r: Room) => ({ name: r.name, has_unread: r.has_unread, last_message: r.last_message })));
+      setRooms(data);
+    } catch (err) {
+      console.error('Load rooms error:', err);
+    }
+  }, [token]);
+
   const formatTime = (ts: number) => {
     const d = new Date(ts * 1000);
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

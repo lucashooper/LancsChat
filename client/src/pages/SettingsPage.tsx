@@ -44,15 +44,20 @@ export default function SettingsPage() {
     setSaving(true);
     setError('');
     try {
-      const { error: updateError } = await supabase.auth.updateUser({
+      console.log('[Settings] Updating display name to:', displayName.trim());
+      const { data, error: updateError } = await supabase.auth.updateUser({
         data: { display_name: displayName.trim() }
       });
+      console.log('[Settings] Supabase update response:', { data, error: updateError });
       if (updateError) throw updateError;
       
+      console.log('[Settings] Calling refreshUser...');
       await refreshUser();
+      console.log('[Settings] User refreshed, new user data:', user);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
+      console.error('[Settings] Profile update error:', err);
       setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setSaving(false);
