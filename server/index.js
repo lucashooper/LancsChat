@@ -839,13 +839,21 @@ io.on('connection', (socket) => {
 
   socket.on('pin_message', (data) => {
     const { messageId } = data || {};
-    if (!messageId || !socket.user.is_admin) return;
+    console.log('[pin_message] Received:', { messageId, is_admin: socket.user.is_admin, user: socket.user.display_name });
+    if (!messageId || !socket.user.is_admin) {
+      console.log('[pin_message] Rejected: no messageId or not admin');
+      return;
+    }
 
     const msg = db.prepare('SELECT id, room_id, content, sender_id FROM messages WHERE id = ? AND message_type = \'room\'').get(messageId);
+    console.log('[pin_message] Message found:', msg);
     if (!msg || !msg.room_id) return;
 
     const existing = db.prepare('SELECT id FROM pinned_messages WHERE message_id = ? AND room_id = ?').get(messageId, msg.room_id);
-    if (existing) return;
+    if (existing) {
+      console.log('[pin_message] Already pinned');
+      return;
+    }
 
     const pinId = uuidv4();
     db.prepare('INSERT INTO pinned_messages (id, message_id, room_id, pinned_by) VALUES (?, ?, ?, ?)').run(pinId, messageId, msg.room_id, socket.user.id);
