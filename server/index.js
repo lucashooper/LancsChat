@@ -372,6 +372,40 @@ app.get('/api/rooms/:roomId/messages', authMiddleware, (req, res) => {
   res.json(enriched);
 });
 
+// Get pinned messages for a room
+app.get('/api/rooms/:roomId/pinned', authMiddleware, (req, res) => {
+  const { roomId } = req.params;
+  try {
+    const pins = db.prepare(`
+      SELECT p.id, p.message_id, p.pinned_at, p.pinned_by,
+             m.content, m.created_at, m.sender_id,
+             u.display_name, u.avatar_color, u.avatar_url, u.is_admin
+      FROM pinned_messages p
+      JOIN messages m ON p.message_id = m.id
+      JOIN users u ON m.sender_id = u.id
+      WHERE p.room_id = ?
+      ORDER BY p.pinned_at DESC
+    `).all(roomId);
+
+    res.json(pins.map(p => ({
+      id: p.id,
+      message_id: p.message_id,
+      content: p.content,
+      created_at: p.created_at,
+      sender_id: p.sender_id,
+      display_name: p.display_name,
+      avatar_color: p.avatar_color,
+      avatar_url: p.avatar_url,
+      is_admin: !!p.is_admin,
+      pinned_at: p.pinned_at,
+      pinned_by: p.pinned_by,
+    })));
+  } catch (err) {
+    console.error('Pinned messages error:', err);
+    res.json([]);
+  }
+});
+
 // Get DM conversations for a user
 app.get('/api/dms', authMiddleware, (req, res) => {
   try {

@@ -133,7 +133,6 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS unban_requests (
-    id TEXT PRIMARY KEY,
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
     display_name TEXT NOT NULL,
@@ -157,6 +156,18 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_room_last_read_user ON room_last_read(user_id);
+
+  CREATE TABLE IF NOT EXISTS pinned_messages (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL,
+    room_id TEXT NOT NULL,
+    pinned_by TEXT NOT NULL,
+    pinned_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+    FOREIGN KEY (pinned_by) REFERENCES users(id),
+    UNIQUE(message_id, room_id)
+  );
 `);
 
 addColumnIfMissing('message_reports', "report_type TEXT DEFAULT 'message'");

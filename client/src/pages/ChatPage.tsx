@@ -180,12 +180,22 @@ export default function ChatPage() {
         setMessages((prev) => [...prev, data.message]);
         setTimeout(scrollToBottom, 50);
       }
+      // Always update room preview for any room
+      setRooms((prev) => prev.map((r) =>
+        r.id === data.roomId
+          ? { ...r, last_message: data.message.content?.substring(0, 100), last_message_at: data.message.created_at, last_message_sender: data.message.display_name }
+          : r
+      ));
     };
 
     const handleNewDM = (data: { recipientId: string; message: Message }) => {
       if (selectedDM && (data.recipientId === selectedDM.other_id || data.message.sender_id === selectedDM.other_id)) {
         setDmMessages((prev) => [...prev, data.message]);
         setTimeout(scrollToBottom, 50);
+      }
+      // Refresh DM conversations list so new convos appear
+      if (token) {
+        api('/dms', { token }).then(setDmConversations).catch(console.error);
       }
     };
 
@@ -202,6 +212,14 @@ export default function ChatPage() {
       setDmMessages([]);
       setActiveTab('dms');
       setChatOpen(true);
+      // Also add to DM list immediately and refresh from server
+      setDmConversations((prev) => {
+        const exists = prev.some((c) => c.other_id === data.other_id);
+        return exists ? prev : [newConvo, ...prev];
+      });
+      if (token) {
+        api('/dms', { token }).then(setDmConversations).catch(console.error);
+      }
     };
 
     socket.on('new_message', handleNewMessage);
@@ -815,17 +833,26 @@ export default function ChatPage() {
             {/* Chat Header */}
             <div className="chatHeader">
               {activeTab === 'rooms' && selectedRoom && (
-                <div className="chatHeaderRow">
-                  <span style={{ fontSize: 24 }}>{selectedRoom.icon}</span>
-                  <h2 className="chatHeaderTitle">{selectedRoom.name}</h2>
-                </div>
+                <>
+                  <div className="chatHeaderRow">
+                    <span style={{ fontSize: 24 }}>{selectedRoom.icon}</span>
+                    <h2 className="chatHeaderTitle">{selectedRoom.name}</h2>
+                  </div>
+                  <button
+                    className="pinnedBtn"
+                    onClick={() => setShowPinnedModal(true)}
+                    title={pinnedMessages.length > 0 ? `${pinnedMessages.length} pinned message${pinnedMessages.length > 1 ? 's' : ''}` : 'Pinned Messages'}
+                  >
+                    <Pin size={20} />
+                    {pinnedMessages.length > 0 && <span className="pinnedCount">{pinnedMessages.length}</span>}
+                  </button>
+                </>
               )}
 
               {activeTab === 'dms' && selectedDM && (
                 <div className="chatHeaderRow">
                   <div
-                    className="dmAvatar"
-                    style={{ width: 40, height: 40, backgroundColor: selectedDM.other_color, fontSize: 12 }}
+                    style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: selectedDM.other_color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 600, fontSize: 14, flexShrink: 0 }}
                   >
                     {selectedDM.other_name?.charAt(0)}
                   </div>

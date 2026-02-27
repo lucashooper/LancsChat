@@ -361,11 +361,15 @@
 }
 
 .chatHeader {
-  padding-top: 24px; /* requested */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 24px;
   padding-bottom: 24px;
   padding-left: 32px;
   padding-right: 32px;
   flex-shrink: 0;
+  border-bottom: 1px solid #262626;
 }
 
 .chatHeaderRow {
