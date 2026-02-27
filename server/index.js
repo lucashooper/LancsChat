@@ -431,7 +431,7 @@ app.get('/api/dms', authMiddleware, (req, res) => {
       JOIN users u2 ON dc.user2_id = u2.id
       WHERE dc.user1_id = ? OR dc.user2_id = ?
       ORDER BY dc.last_message_at DESC NULLS LAST, dc.created_at DESC
-    `).all(userId, userId, userId, userId, userId, userId);
+    `).all(userId, userId, userId, userId, userId);
     
     console.log('[/api/dms] Found', conversations.length, 'conversations');
 

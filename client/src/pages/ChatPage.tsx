@@ -1075,6 +1075,7 @@ export default function ChatPage() {
         const canAdminDelete = !!user?.isAdmin && !isOwn;
         const canAdminBan = !!user?.isAdmin && !isOwn;
         const canPin = user?.isAdmin && activeTab === 'rooms';
+        const isPinned = pinnedMessages.some(p => p.message_id === msg.id);
         const menuX = Math.min(moreMenu.x, window.innerWidth - 220);
         const menuY = Math.min(moreMenu.y, window.innerHeight - 220);
 
@@ -1091,10 +1092,19 @@ export default function ChatPage() {
           <div className="moreMenu" style={{ left: menuX, top: menuY }} onMouseDown={(e) => e.stopPropagation()}>
             <button className="moreItem" type="button" onClick={() => { void copyText(); setMoreMenu(null); }}>Copy</button>
             {canPin && (
-              <button className="moreItem" type="button" onClick={() => { if (socket) socket.emit('pin_message', { messageId: msg.id }); setMoreMenu(null); }}>📌 Pin Message</button>
+              <button className="moreItem" type="button" onClick={() => { 
+                if (socket) {
+                  if (isPinned) {
+                    socket.emit('unpin_message', { messageId: msg.id });
+                  } else {
+                    socket.emit('pin_message', { messageId: msg.id });
+                  }
+                }
+                setMoreMenu(null);
+              }}>{isPinned ? '📌 Unpin Message' : '📌 Pin Message'}</button>
             )}
             {canDelete && (
-              <button className="moreItem danger" type="button" onClick={() => { deleteMessage(msg.id); setMoreMenu(null); }}>Unsend / Delete</button>
+              <button className="moreItem danger" type="button" onClick={() => { deleteMessage(msg.id); setMoreMenu(null); }}>Unsend</button>
             )}
             {canReport && (
               <>
@@ -1313,21 +1323,35 @@ export default function ChatPage() {
                 <div className="modalMuted">No pinned messages</div>
               ) : (
                 pinnedMessages.map((pin) => (
-                  <div key={pin.id} className="pinnedItem" onClick={() => jumpToMessage(pin.message_id)}>
-                    <div className="pinnedItemHeader">
-                      {pin.avatar_url ? (
-                        <img src={pin.avatar_url} alt={pin.display_name} className="pinnedAvatar" />
-                      ) : (
-                        <div className="pinnedAvatar" style={{ backgroundColor: pin.avatar_color }}>
-                          {pin.display_name?.charAt(0)}
+                  <div key={pin.id} className="pinnedItem">
+                    <div onClick={() => jumpToMessage(pin.message_id)} style={{ flex: 1, cursor: 'pointer' }}>
+                      <div className="pinnedItemHeader">
+                        {pin.avatar_url ? (
+                          <img src={pin.avatar_url} alt={pin.display_name} className="pinnedAvatar" />
+                        ) : (
+                          <div className="pinnedAvatar" style={{ backgroundColor: pin.avatar_color }}>
+                            {pin.display_name?.charAt(0)}
+                          </div>
+                        )}
+                        <div className="pinnedItemMeta">
+                          <span className="pinnedItemName">{pin.display_name}</span>
+                          <span className="pinnedItemTime">{new Date(pin.created_at * 1000).toLocaleDateString()}</span>
                         </div>
-                      )}
-                      <div className="pinnedItemMeta">
-                        <span className="pinnedItemName">{pin.display_name}</span>
-                        <span className="pinnedItemTime">{new Date(pin.created_at * 1000).toLocaleDateString()}</span>
                       </div>
+                      <div className="pinnedItemContent">{pin.content}</div>
                     </div>
-                    <div className="pinnedItemContent">{pin.content}</div>
+                    {user?.isAdmin && (
+                      <button
+                        className="pinnedItemUnpin"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (socket) socket.emit('unpin_message', { messageId: pin.message_id });
+                        }}
+                        title="Unpin message"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
                   </div>
                 ))
               )}

@@ -1278,12 +1278,38 @@
   padding: 12px;
   background: #1a1a1a;
   border-radius: 8px;
-  cursor: pointer;
   transition: background 0.2s;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .pinnedItem:hover {
   background: #262626;
+}
+
+.pinnedItemUnpin {
+  background: none;
+  border: none;
+  color: #a8a8a8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.pinnedItem:hover .pinnedItemUnpin {
+  opacity: 1;
+}
+
+.pinnedItemUnpin:hover {
+  background: #3a3a3a;
+  color: #fff;
 }
 
 .pinnedItemHeader {
