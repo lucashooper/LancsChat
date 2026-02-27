@@ -34,6 +34,7 @@ interface Message {
   reply_to?: ReplyMeta | null;
   is_deleted?: number | boolean;
   reactions?: ReactionSummary[];
+  is_admin?: boolean;
 }
 
 interface ReplyMeta {
@@ -215,8 +216,17 @@ export default function ChatPage() {
       }
     };
 
+    const handleRoomUpdated = (data: { roomId: string; last_message: string | null; last_message_at: number | null; last_message_sender: string | null }) => {
+      setRooms((prev) => prev.map((r) => 
+        r.id === data.roomId 
+          ? { ...r, last_message: data.last_message, last_message_at: data.last_message_at, last_message_sender: data.last_message_sender }
+          : r
+      ));
+    };
+
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('send_error', handleSendError);
+    socket.on('room_updated', handleRoomUpdated);
 
     return () => {
       socket.off('new_message', handleNewMessage);
@@ -224,6 +234,7 @@ export default function ChatPage() {
       socket.off('dm_started', handleDMStarted);
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('send_error', handleSendError);
+      socket.off('room_updated', handleRoomUpdated);
     };
   }, [socket, selectedRoom, selectedDM, scrollToBottom]);
 
@@ -827,7 +838,10 @@ export default function ChatPage() {
                     <div className="msgBlock">
                       {showAvatar && (
                         <div className={`msgMeta ${isOwn ? 'isOwn' : ''}`}>
-                          <span className="msgName">{msg.display_name}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span className="msgName">{msg.display_name}</span>
+                            {msg.is_admin && <span style={{ fontSize: '10px', fontWeight: '600', color: '#0095f6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin</span>}
+                          </div>
                           <span className="msgTime">{formatTime(msg.created_at)}</span>
                         </div>
                       )}

@@ -352,7 +352,7 @@ app.get('/api/rooms/:roomId/messages', authMiddleware, (req, res) => {
   let query = `
     SELECT m.id, m.content, m.created_at, m.sender_id,
            m.reply_to_message_id, m.is_deleted,
-           u.display_name, u.avatar_color
+           u.display_name, u.avatar_color, u.avatar_url, u.is_admin
     FROM messages m
     JOIN users u ON m.sender_id = u.id
     WHERE m.room_id = ? AND m.message_type = 'room'
@@ -472,25 +472,22 @@ app.delete('/api/dms/:conversationId', authMiddleware, (req, res) => {
 });
 
 // Get DM messages
-app.get('/api/dms/:recipientId/messages', authMiddleware, (req, res) => {
+app.get('/api/dms/:otherUserId/messages', authMiddleware, (req, res) => {
   try {
+    const { otherUserId } = req.params;
     const userId = req.userId;
-    const { recipientId } = req.params;
-    const limit = parseInt(req.query.limit) || 50;
 
-    const messages = db.prepare(`
-      SELECT m.id, m.content, m.created_at, m.sender_id,
-             m.reply_to_message_id, m.is_deleted,
-             u.display_name, u.avatar_color
+    const rows = db.prepare(`
+      SELECT m.id, m.content, m.created_at, m.sender_id, m.reply_to_message_id, m.is_deleted,
+             u.display_name, u.avatar_color, u.avatar_url, u.is_admin
       FROM messages m
       JOIN users u ON m.sender_id = u.id
       WHERE m.message_type = 'dm'
         AND ((m.sender_id = ? AND m.recipient_id = ?) OR (m.sender_id = ? AND m.recipient_id = ?))
-      ORDER BY m.created_at DESC
-      LIMIT ?
-    `).all(userId, recipientId, recipientId, userId, limit);
+      ORDER BY m.created_at ASC
+    `).all(userId, otherUserId, otherUserId, userId);
 
-    const enriched = attachRepliesAndReactions(messages.reverse(), userId);
+    const enriched = attachRepliesAndReactions(rows.reverse(), userId);
     res.json(enriched);
   } catch (err) {
     console.error('DM messages error:', err);
@@ -806,6 +803,56 @@ io.on('connection', (socket) => {
     socket.emit('report_submitted', { ok: true, reportId });
   });
 
+  socket.on('pin_message', (data) => {
+    const { messageId } = data || {};
+    if (!messageId || !socket.user.is_admin) return;
+
+    const msg = db.prepare('SELECT id, room_id, content, sender_id FROM messages WHERE id = ? AND message_type = \'room\'').get(messageId);
+    if (!msg || !msg.room_id) return;
+
+    const existing = db.prepare('SELECT id FROM pinned_messages WHERE message_id = ? AND room_id = ?').get(messageId, msg.room_id);
+    if (existing) return;
+
+    const pinId = uuidv4();
+    db.prepare('INSERT INTO pinned_messages (id, message_id, room_id, pinned_by) VALUES (?, ?, ?, ?)').run(pinId, messageId, msg.room_id, socket.user.id);
+
+    const sender = db.prepare('SELECT display_name FROM users WHERE id = ?').get(msg.sender_id);
+    const systemMessageId = uuidv4();
+    const now = Math.floor(Date.now() / 1000);
+    
+    db.prepare(`
+      INSERT INTO messages (id, room_id, sender_id, content, message_type, created_at)
+      VALUES (?, ?, ?, ?, 'room', ?)
+    `).run(systemMessageId, msg.room_id, socket.user.id, `📌 pinned a message from ${sender?.display_name || 'someone'}`, now);
+
+    const systemMessage = {
+      id: systemMessageId,
+      content: `📌 pinned a message from ${sender?.display_name || 'someone'}`,
+      created_at: now,
+      sender_id: socket.user.id,
+      display_name: socket.user.display_name,
+      avatar_color: socket.user.avatar_color,
+      avatar_url: socket.user.avatar_url || null,
+      is_admin: true,
+      is_deleted: 0,
+      reactions: [],
+    };
+
+    io.to(`room:${msg.room_id}`).emit('new_message', { roomId: msg.room_id, message: systemMessage });
+    io.to(`room:${msg.room_id}`).emit('message_pinned', { messageId, roomId: msg.room_id, pinnedBy: socket.user.id });
+  });
+
+  socket.on('unpin_message', (data) => {
+    const { messageId } = data || {};
+    if (!messageId || !socket.user.is_admin) return;
+
+    const pinned = db.prepare('SELECT room_id FROM pinned_messages WHERE message_id = ?').get(messageId);
+    if (!pinned) return;
+
+    db.prepare('DELETE FROM pinned_messages WHERE message_id = ?').run(messageId);
+    io.to(`room:${pinned.room_id}`).emit('message_unpinned', { messageId, roomId: pinned.room_id });
+  });
+
   // Leave a room
   socket.on('leave_room', (roomId) => {
     socket.leave(`room:${roomId}`);
@@ -865,6 +912,8 @@ io.on('connection', (socket) => {
       reactions: [],
       display_name: socket.user.display_name,
       avatar_color: socket.user.avatar_color,
+      avatar_url: socket.user.avatar_url || null,
+      is_admin: !!socket.user.is_admin,
     };
 
     io.to(`room:${roomId}`).emit('new_message', { roomId, message });
@@ -943,6 +992,8 @@ io.on('connection', (socket) => {
       reactions: [],
       display_name: socket.user.display_name,
       avatar_color: socket.user.avatar_color,
+      avatar_url: socket.user.avatar_url || null,
+      is_admin: !!socket.user.is_admin,
     };
 
     // Send to both users

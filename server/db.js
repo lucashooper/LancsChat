@@ -108,39 +108,32 @@ db.exec(`
     message_id TEXT NOT NULL,
     report_type TEXT DEFAULT 'message',
     reason TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    reviewed_by TEXT,
+    reviewed_at INTEGER,
     created_at INTEGER DEFAULT (unixepoch()),
-    resolved_at INTEGER,
-    resolved_by TEXT,
-    FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (reported_user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+    FOREIGN KEY (reporter_id) REFERENCES users(id),
+    FOREIGN KEY (reported_user_id) REFERENCES users(id),
+    FOREIGN KEY (message_id) REFERENCES messages(id)
   );
-
-  CREATE INDEX IF NOT EXISTS idx_reports_created ON message_reports(created_at);
-  CREATE INDEX IF NOT EXISTS idx_reports_message ON message_reports(message_id);
-  CREATE INDEX IF NOT EXISTS idx_reports_reported ON message_reports(reported_user_id);
 
   CREATE TABLE IF NOT EXISTS deleted_messages_log (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL,
     deleted_by TEXT NOT NULL,
-    deleted_at INTEGER DEFAULT (unixepoch()),
+    deleted_at INTEGER NOT NULL,
     reason TEXT,
-    original_content TEXT NOT NULL,
-    sender_id TEXT NOT NULL,
+    original_content TEXT,
+    sender_id TEXT,
     room_id TEXT,
     recipient_id TEXT,
-    message_type TEXT NOT NULL,
-    message_created_at INTEGER NOT NULL,
-    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
-    FOREIGN KEY (deleted_by) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+    message_type TEXT,
+    message_created_at INTEGER,
+    FOREIGN KEY (deleted_by) REFERENCES users(id)
   );
 
-  CREATE INDEX IF NOT EXISTS idx_deleted_log_created ON deleted_messages_log(deleted_at);
-  CREATE INDEX IF NOT EXISTS idx_deleted_log_message ON deleted_messages_log(message_id);
-
   CREATE TABLE IF NOT EXISTS unban_requests (
+    id TEXT PRIMARY KEY,
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
     display_name TEXT NOT NULL,
