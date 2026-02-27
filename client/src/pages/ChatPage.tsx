@@ -883,21 +883,21 @@ export default function ChatPage() {
                     onTouchEnd={clearLongPress}
                     onTouchMove={clearLongPress}
                   >
-                    {showAvatar ? (
+                    {!isOwn && showAvatar ? (
                       msg.avatar_url ? (
                         <button
-                          onClick={() => !isOwn && activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
-                          className={`msgAvatarBtn ${!isOwn && activeTab === 'rooms' ? 'isClickable' : ''}`}
-                          title={!isOwn ? `DM ${msg.display_name}` : undefined}
+                          onClick={() => activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
+                          className={`msgAvatarBtn ${activeTab === 'rooms' ? 'isClickable' : ''}`}
+                          title={`DM ${msg.display_name}`}
                         >
                           <img src={msg.avatar_url} alt={msg.display_name} className="msgAvatarImg" />
                         </button>
                       ) : (
                         <button
-                          onClick={() => !isOwn && activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
-                          className={`msgAvatarBtn ${!isOwn && activeTab === 'rooms' ? 'isClickable' : ''}`}
+                          onClick={() => activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
+                          className={`msgAvatarBtn ${activeTab === 'rooms' ? 'isClickable' : ''}`}
                           style={{ backgroundColor: msg.avatar_color }}
-                          title={!isOwn ? `DM ${msg.display_name}` : undefined}
+                          title={`DM ${msg.display_name}`}
                         >
                           {msg.display_name?.charAt(0)}
                         </button>
