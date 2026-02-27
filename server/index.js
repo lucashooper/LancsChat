@@ -244,6 +244,10 @@ app.get('/api/rooms', (req, res) => {
     const lastReadAt = lastRead ? lastRead.last_read_at : 0;
     const hasUnread = lastMsg && lastMsg.created_at > lastReadAt && lastMsg.sender_id !== userId;
 
+    if (lastMsg) {
+      console.log(`[/api/rooms] ${room.name}: lastMsg.created_at=${lastMsg.created_at}, lastReadAt=${lastReadAt}, sender=${lastMsg.sender_id}, currentUser=${userId}, hasUnread=${hasUnread}`);
+    }
+
     return {
       ...room,
       last_message: lastMsg ? lastMsg.content : null,
