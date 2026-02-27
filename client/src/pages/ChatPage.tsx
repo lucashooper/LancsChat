@@ -359,6 +359,28 @@ export default function ChatPage() {
 
   const submitReport = () => {
     if (!socket || !reportModal?.messageId) return;
+    socket.emit('report_message', { messageId: reportModal.messageId, reason: reportReason, type: reportModal.type });
+    setReportModal(null);
+  };
+
+  const openRoom = (room: Room) => {
+    setSelectedRoom(room);
+    setChatOpen(true);
+    setMessages([]);
+    void api(`/rooms/${room.id}/messages`, { token })
+      .then((msgs) => {
+        setMessages(msgs);
+        setTimeout(scrollToBottom, 100);
+      })
+      .catch(console.error);
+  };
+
+  const openDM = (convo: DMConversation) => {
+    setSelectedDM(convo);
+    setChatOpen(true);
+    setDmMessages([]);
+  };
+
   const startDMWithUser = (userId: string) => {
     if (!socket || userId === user?.id) return;
     socket.emit('start_dm', { targetUserId: userId });
