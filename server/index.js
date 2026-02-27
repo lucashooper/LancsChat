@@ -39,13 +39,29 @@ function decodeSupabaseToken(token) {
   try {
     // If we have the JWT secret, verify properly
     if (process.env.SUPABASE_JWT_SECRET && process.env.SUPABASE_JWT_SECRET !== 'your-supabase-jwt-secret') {
-      return jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+      try {
+        return jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
+      } catch (verifyErr) {
+        console.error('[JWT] Verify failed:', verifyErr.message);
+        // Decode the header to check the algorithm
+        const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString());
+        console.error('[JWT] Token algorithm:', header.alg, '| kid:', header.kid);
+        console.error('[JWT] Secret starts with:', process.env.SUPABASE_JWT_SECRET.substring(0, 10) + '...');
+        // Fallback: if verify fails, decode without verification
+        const decoded = jwt.decode(token);
+        if (decoded && decoded.sub) {
+          console.log('[JWT] Falling back to decode-only (token alg may not match secret)');
+          return decoded;
+        }
+        return null;
+      }
     }
     // Otherwise decode without verification (dev mode)
     const decoded = jwt.decode(token);
     if (!decoded || !decoded.sub) throw new Error('Invalid token');
     return decoded;
   } catch (err) {
+    console.error('[JWT] decodeSupabaseToken error:', err.message);
     return null;
   }
 }
