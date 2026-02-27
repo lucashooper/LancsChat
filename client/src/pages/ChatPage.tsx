@@ -5,7 +5,7 @@ import { useSocket } from '../context/SocketContext';
 import { api } from '../api';
 import {
   Hash, LogOut, Users,
-  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X
+  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin
 } from 'lucide-react';
 import SettingsPage from './SettingsPage';
 import { supabase } from '../lib/supabase';
@@ -97,12 +97,15 @@ export default function ChatPage() {
   const [fullEmojiPicker, setFullEmojiPicker] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [inputEmojiPicker, setInputEmojiPicker] = useState(false);
   const [dmContextMenu, setDmContextMenu] = useState<{ conversationId: string; x: number; y: number } | null>(null);
+  const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
+  const [showPinnedModal, setShowPinnedModal] = useState(false);
 
   const [reactionMap, setReactionMap] = useState<Record<string, ReactionSummary[]>>({});
   const visibleMessageIdsRef = useRef<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement>>({});
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -136,7 +139,7 @@ export default function ChatPage() {
     }
   }, [activeTab, token]);
 
-  // Join room via socket
+  // Join a room via socket
   useEffect(() => {
     if (!socket || !selectedRoom) return;
 
@@ -148,6 +151,8 @@ export default function ChatPage() {
         setTimeout(scrollToBottom, 100);
       })
       .catch(console.error);
+
+    void loadPinnedMessages(selectedRoom.id);
 
     return () => {
       socket.emit('leave_room', selectedRoom.id);
@@ -224,9 +229,23 @@ export default function ChatPage() {
       ));
     };
 
+    const handleMessagePinned = () => {
+      if (selectedRoom) {
+        void loadPinnedMessages(selectedRoom.id);
+      }
+    };
+
+    const handleMessageUnpinned = () => {
+      if (selectedRoom) {
+        void loadPinnedMessages(selectedRoom.id);
+      }
+    };
+
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('send_error', handleSendError);
     socket.on('room_updated', handleRoomUpdated);
+    socket.on('message_pinned', handleMessagePinned);
+    socket.on('message_unpinned', handleMessageUnpinned);
 
     return () => {
       socket.off('new_message', handleNewMessage);
@@ -235,6 +254,8 @@ export default function ChatPage() {
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('send_error', handleSendError);
       socket.off('room_updated', handleRoomUpdated);
+      socket.off('message_pinned', handleMessagePinned);
+      socket.off('message_unpinned', handleMessageUnpinned);
     };
   }, [socket, selectedRoom, selectedDM, scrollToBottom]);
 
@@ -443,6 +464,28 @@ export default function ChatPage() {
     } catch (err) {
       console.error('Delete DM error:', err);
     }
+  };
+
+  const loadPinnedMessages = async (roomId: string) => {
+    if (!token) return;
+    try {
+      const data = await api(`/rooms/${roomId}/pinned`, { token });
+      setPinnedMessages(data);
+    } catch (err) {
+      console.error('Load pinned messages error:', err);
+    }
+  };
+
+  const jumpToMessage = (messageId: string) => {
+    const element = messageRefs.current[messageId];
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.style.backgroundColor = 'rgba(0, 149, 246, 0.1)';
+      setTimeout(() => {
+        element.style.backgroundColor = '';
+      }, 2000);
+    }
+    setShowPinnedModal(false);
   };
 
   const loadRooms = useCallback(async () => {
@@ -804,6 +847,7 @@ export default function ChatPage() {
                 return (
                   <div
                     key={msg.id}
+                    ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
                     className={`messageRow ${isOwn ? 'isOwn' : ''} ${showAvatar ? 'isSpaced' : ''}`}
                     onTouchStart={(e) => {
                       const t = e.touches[0];
@@ -995,41 +1039,6 @@ export default function ChatPage() {
         )}
       </div>
 
-      {emojiPicker && (() => {
-        const msg = getMessageById(emojiPicker.messageId);
-        if (!msg) return null;
-        const x = Math.min(emojiPicker.x, window.innerWidth - 220);
-        const y = Math.max(10, emojiPicker.y - 56);
-        return (
-          <div className="emojiPicker" style={{ left: x, top: y }} onMouseDown={(e) => e.stopPropagation()}>
-            {['👍', '❤️', '😂', '😮', '😢', '😠'].map((emoji) => (
-              <button
-                key={emoji}
-                className="emojiPick"
-                type="button"
-                onClick={() => {
-                  void toggleReaction(msg.id, emoji);
-                  setEmojiPicker(null);
-                }}
-              >
-                {emoji}
-              </button>
-            ))}
-            <button
-              className="emojiPick emojiPickPlus"
-              type="button"
-              onClick={() => {
-                setFullEmojiPicker({ messageId: msg.id, x: emojiPicker.x, y: emojiPicker.y });
-                setEmojiPicker(null);
-              }}
-              title="More reactions"
-            >
-              +
-            </button>
-          </div>
-        );
-      })()}
-
       {moreMenu && (() => {
         const msg = getMessageById(moreMenu.messageId);
         if (!msg) return null;
@@ -1038,6 +1047,7 @@ export default function ChatPage() {
         const canReport = !isOwn;
         const canAdminDelete = !!user?.isAdmin && !isOwn;
         const canAdminBan = !!user?.isAdmin && !isOwn;
+        const canPin = user?.isAdmin && activeTab === 'rooms';
         const menuX = Math.min(moreMenu.x, window.innerWidth - 220);
         const menuY = Math.min(moreMenu.y, window.innerHeight - 220);
 
@@ -1053,6 +1063,9 @@ export default function ChatPage() {
         return (
           <div className="moreMenu" style={{ left: menuX, top: menuY }} onMouseDown={(e) => e.stopPropagation()}>
             <button className="moreItem" type="button" onClick={() => { void copyText(); setMoreMenu(null); }}>Copy</button>
+            {canPin && (
+              <button className="moreItem" type="button" onClick={() => { if (socket) socket.emit('pin_message', { messageId: msg.id }); setMoreMenu(null); }}>📌 Pin Message</button>
+            )}
             {canDelete && (
               <button className="moreItem danger" type="button" onClick={() => { deleteMessage(msg.id); setMoreMenu(null); }}>Unsend / Delete</button>
             )}
@@ -1099,6 +1112,41 @@ export default function ChatPage() {
                 Ban user (admin)
               </button>
             )}
+          </div>
+        );
+      })()}
+
+      {emojiPicker && (() => {
+        const msg = getMessageById(emojiPicker.messageId);
+        if (!msg) return null;
+        const x = Math.min(emojiPicker.x, window.innerWidth - 220);
+        const y = Math.max(10, emojiPicker.y - 56);
+        return (
+          <div className="emojiPicker" style={{ left: x, top: y }} onMouseDown={(e) => e.stopPropagation()}>
+            {['👍', '❤️', '😂', '😮', '😢', '😠'].map((emoji) => (
+              <button
+                key={emoji}
+                className="emojiPick"
+                type="button"
+                onClick={() => {
+                  void toggleReaction(msg.id, emoji);
+                  setEmojiPicker(null);
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+            <button
+              className="emojiPick emojiPickPlus"
+              type="button"
+              onClick={() => {
+                setFullEmojiPicker({ messageId: msg.id, x: emojiPicker.x, y: emojiPicker.y });
+                setEmojiPicker(null);
+              }}
+              title="More reactions"
+            >
+              +
+            </button>
           </div>
         );
       })()}
@@ -1219,6 +1267,43 @@ export default function ChatPage() {
                   {emoji}
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPinnedModal && (
+        <div className="modalOverlay" onMouseDown={() => setShowPinnedModal(false)}>
+          <div className="modalCard pinnedModal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div className="modalTitle">📌 Pinned Messages</div>
+              <button className="modalCloseBtn" onClick={() => setShowPinnedModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="pinnedList">
+              {pinnedMessages.length === 0 ? (
+                <div className="modalMuted">No pinned messages</div>
+              ) : (
+                pinnedMessages.map((pin) => (
+                  <div key={pin.id} className="pinnedItem" onClick={() => jumpToMessage(pin.message_id)}>
+                    <div className="pinnedItemHeader">
+                      {pin.avatar_url ? (
+                        <img src={pin.avatar_url} alt={pin.display_name} className="pinnedAvatar" />
+                      ) : (
+                        <div className="pinnedAvatar" style={{ backgroundColor: pin.avatar_color }}>
+                          {pin.display_name?.charAt(0)}
+                        </div>
+                      )}
+                      <div className="pinnedItemMeta">
+                        <span className="pinnedItemName">{pin.display_name}</span>
+                        <span className="pinnedItemTime">{new Date(pin.created_at * 1000).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div className="pinnedItemContent">{pin.content}</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
