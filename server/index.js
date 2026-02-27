@@ -917,6 +917,15 @@ io.on('connection', (socket) => {
     };
 
     io.to(`room:${roomId}`).emit('new_message', { roomId, message });
+
+    // Update room preview
+    const roomUpdate = {
+      roomId,
+      last_message: content.trim().substring(0, 100),
+      last_message_at: now,
+      last_message_sender: socket.user.display_name,
+    };
+    io.emit('room_updated', roomUpdate);
   });
 
   // Send a DM
