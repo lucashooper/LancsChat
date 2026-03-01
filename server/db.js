@@ -184,7 +184,7 @@ if (roomCount.count === 0) {
     ['academic', 'Academic', 'Course help, study groups, exam chat', '📚', 4],
     ['accommodation', 'Accommodation', 'Housing, flatmates, campus living', '🏡', 5],
     ['events', 'Events & Socials', 'What\'s happening around campus', '🎉', 6],
-    ['memes', 'Memes & Banter', 'Lancaster memes and general banter', '�', 7],
+    ['memes', 'Memes & Banter', 'Lancaster memes and general banter', '😂', 7],
     ['sports', 'Sports & Societies', 'Clubs, sports, and society chat', '⚽', 8],
   ];
 
@@ -205,5 +205,8 @@ const updateSort = db.prepare('UPDATE rooms SET sort_order = ? WHERE id = ?');
 for (const [id, order] of Object.entries(sortOrders)) {
   updateSort.run(order, id);
 }
+
+// Fix corrupted emoji for Memes & Banter room
+db.prepare('UPDATE rooms SET icon = ? WHERE id = ?').run('😂', 'memes');
 
 module.exports = db;

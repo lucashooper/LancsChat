@@ -489,17 +489,7 @@ export default function AuthPage() {
           )}
         </div>
 
-        {/* Footer */}
-        <p style={{
-          textAlign: 'center',
-          color: '#484848',
-          fontSize: '12px',
-          marginTop: '24px',
-          lineHeight: '18px',
-        }}>
-          Your identity is always anonymous.<br />
-          We only verify you're a Lancaster student.
-        </p>
+        {/* Footer - removed for cleaner UI */}
 
         {step === 'check-email' && (
           <div className="authCard">
