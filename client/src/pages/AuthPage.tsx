@@ -504,7 +504,7 @@ export default function AuthPage() {
         )}
 
         {step === 'forgot-password' && (
-          <form onSubmit={handleForgotPassword}>
+          <form onSubmit={handleForgotPassword} style={{ marginTop: '24px' }}>
             {error && <div style={errorStyle}>{error}</div>}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
@@ -551,7 +551,7 @@ export default function AuthPage() {
         )}
 
         {step === 'reset-sent' && (
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ textAlign: 'center', marginTop: '24px' }}>
             <div style={{
               width: '56px',
               height: '56px',
