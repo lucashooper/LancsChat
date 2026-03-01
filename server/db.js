@@ -76,6 +76,7 @@ addColumnIfMissing('users', 'banned_reason TEXT');
 addColumnIfMissing('users', 'has_seen_intro INTEGER DEFAULT 0');
 addColumnIfMissing('users', 'avatar_url TEXT');
 
+addColumnIfMissing('rooms', 'sort_order INTEGER DEFAULT 100');
 addColumnIfMissing('messages', 'reply_to_message_id TEXT');
 addColumnIfMissing('messages', 'is_deleted INTEGER DEFAULT 0');
 addColumnIfMissing('messages', 'deleted_at INTEGER');
@@ -175,16 +176,16 @@ addColumnIfMissing('message_reports', "report_type TEXT DEFAULT 'message'");
 // Seed default rooms if they don't exist
 const roomCount = db.prepare('SELECT COUNT(*) as count FROM rooms').get();
 if (roomCount.count === 0) {
-  const insertRoom = db.prepare('INSERT INTO rooms (id, name, description, icon, is_default) VALUES (?, ?, ?, ?, 1)');
+  const insertRoom = db.prepare('INSERT INTO rooms (id, name, description, icon, is_default, sort_order) VALUES (?, ?, ?, ?, 1, ?)');
   const defaultRooms = [
-    ['general', 'General', 'The main hangout for all Lancaster students', '🏠'],
-    ['memes', 'Memes & Banter', 'Lancaster memes and general banter', '😂'],
-    ['confessions', 'Confessions', 'Get things off your chest anonymously', '🤫'],
-    ['academic', 'Academic', 'Course help, study groups, exam chat', '📚'],
-    ['accommodation', 'Accommodation', 'Housing, flatmates, campus living', '🏡'],
-    ['events', 'Events & Socials', 'What\'s happening around campus', '🎉'],
-    ['advice', 'Advice', 'Ask for advice from fellow students', '💡'],
-    ['sports', 'Sports & Societies', 'Clubs, sports, and society chat', '⚽'],
+    ['general', 'General', 'The main hangout for all Lancaster students', '🏠', 1],
+    ['confessions', 'Confessions', 'Get things off your chest anonymously', '🤫', 2],
+    ['advice', 'Advice', 'Ask for advice from fellow students', '💡', 3],
+    ['academic', 'Academic', 'Course help, study groups, exam chat', '📚', 4],
+    ['accommodation', 'Accommodation', 'Housing, flatmates, campus living', '🏡', 5],
+    ['events', 'Events & Socials', 'What\'s happening around campus', '🎉', 6],
+    ['memes', 'Memes & Banter', 'Lancaster memes and general banter', '�', 7],
+    ['sports', 'Sports & Societies', 'Clubs, sports, and society chat', '⚽', 8],
   ];
 
   const insertMany = db.transaction((rooms) => {
@@ -193,6 +194,16 @@ if (roomCount.count === 0) {
     }
   });
   insertMany(defaultRooms);
+}
+
+// Migrate sort_order for existing rooms
+const sortOrders = {
+  general: 1, confessions: 2, advice: 3, academic: 4,
+  accommodation: 5, events: 6, memes: 7, sports: 8,
+};
+const updateSort = db.prepare('UPDATE rooms SET sort_order = ? WHERE id = ?');
+for (const [id, order] of Object.entries(sortOrders)) {
+  updateSort.run(order, id);
 }
 
 module.exports = db;

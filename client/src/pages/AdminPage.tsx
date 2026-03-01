@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import './AdminPage.css';
 
-type AdminTab = 'users' | 'reports' | 'deleted' | 'feedback' | 'unban-requests';
+type AdminTab = 'stats' | 'users' | 'reports' | 'deleted' | 'feedback' | 'unban-requests';
 
 type AdminUserRow = {
   id: string;
@@ -72,6 +72,14 @@ type UnbanRequestRow = {
   resolvedBy: string | null;
 };
 
+type StatsData = {
+  messageCount: number;
+  userCount: number;
+  roomCount: number;
+  dmCount: number;
+  dbSizeMB: string;
+};
+
 function formatTs(ts: number | null) {
   if (!ts) return '-';
   const d = new Date(ts * 1000);
@@ -81,12 +89,13 @@ function formatTs(ts: number | null) {
 export default function AdminPage() {
   const { token, user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<AdminTab>('users');
+  const [tab, setTab] = useState<AdminTab>('stats');
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [deleted, setDeleted] = useState<DeletedMessageRow[]>([]);
   const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
   const [unbanRequests, setUnbanRequests] = useState<UnbanRequestRow[]>([]);
+  const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -112,6 +121,9 @@ export default function AdminPage() {
       } else if (tab === 'unban-requests') {
         const rows = await api('/admin/unban-requests', { token });
         setUnbanRequests(rows);
+      } else if (tab === 'stats') {
+        const data = await api('/admin/stats', { token });
+        setStatsData(data);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load admin data');
@@ -179,6 +191,7 @@ export default function AdminPage() {
         </div>
 
         <div className="adminTabs">
+          <button className={`adminTab ${tab === 'stats' ? 'isActive' : ''}`} onClick={() => setTab('stats')}>Statistics</button>
           <button className={`adminTab ${tab === 'users' ? 'isActive' : ''}`} onClick={() => setTab('users')}>Users</button>
           <button className={`adminTab ${tab === 'reports' ? 'isActive' : ''}`} onClick={() => setTab('reports')}>Reports</button>
           <button className={`adminTab ${tab === 'deleted' ? 'isActive' : ''}`} onClick={() => setTab('deleted')}>Deleted messages</button>
@@ -196,6 +209,45 @@ export default function AdminPage() {
           </div>
         ) : (
           <>
+            {tab === 'stats' && statsData && (
+              <div className="adminCard">
+                <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '20px' }}>Database Statistics</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                  <div style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>Total Messages</div>
+                    <div style={{ fontSize: '28px', fontWeight: 600 }}>{statsData.messageCount.toLocaleString()}</div>
+                  </div>
+                  <div style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>Total Users</div>
+                    <div style={{ fontSize: '28px', fontWeight: 600 }}>{statsData.userCount.toLocaleString()}</div>
+                  </div>
+                  <div style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>Total Rooms</div>
+                    <div style={{ fontSize: '28px', fontWeight: 600 }}>{statsData.roomCount.toLocaleString()}</div>
+                  </div>
+                  <div style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>DM Conversations</div>
+                    <div style={{ fontSize: '28px', fontWeight: 600 }}>{statsData.dmCount.toLocaleString()}</div>
+                  </div>
+                  <div style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>Database Size</div>
+                    <div style={{ fontSize: '28px', fontWeight: 600 }}>{statsData.dbSizeMB} <span style={{ fontSize: '16px', color: 'rgba(255,255,255,0.6)' }}>MB</span></div>
+                  </div>
+                </div>
+                <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(0,149,246,0.1)', borderRadius: '12px', border: '1px solid rgba(0,149,246,0.2)' }}>
+                  <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                    <strong>💡 Monitoring Tips:</strong>
+                    <ul style={{ marginTop: '8px', paddingLeft: '20px', lineHeight: '1.6' }}>
+                      <li>Database size under 100MB is healthy for free/starter tier</li>
+                      <li>Monitor this page weekly during first month of launch</li>
+                      <li>If DB size exceeds 500MB, consider implementing message cleanup</li>
+                      <li>Check Render metrics for RAM/CPU usage alongside these stats</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {tab === 'users' && (
               <div className="adminCard">
                 <div className="adminTable">

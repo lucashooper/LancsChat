@@ -238,6 +238,7 @@ app.get('/api/rooms', (req, res) => {
     SELECT * FROM rooms
     ORDER BY
       CASE WHEN is_default = 1 THEN 0 ELSE 1 END,
+      sort_order ASC,
       name ASC
   `).all();
 
@@ -549,6 +550,32 @@ app.get('/api/dms/:otherUserId/messages', authMiddleware, (req, res) => {
 });
 
 // Admin APIs
+app.get('/api/admin/stats', authMiddleware, requireAdmin, (req, res) => {
+  const messageCount = db.prepare('SELECT COUNT(*) as count FROM messages').get();
+  const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
+  const roomCount = db.prepare('SELECT COUNT(*) as count FROM rooms').get();
+  const dmCount = db.prepare('SELECT COUNT(*) as count FROM dm_conversations').get();
+  
+  let dbSizeMB = 0;
+  try {
+    const fs = require('fs');
+    const dbPath = require('path').join(__dirname, 'lancschat.db');
+    if (fs.existsSync(dbPath)) {
+      dbSizeMB = fs.statSync(dbPath).size / (1024 * 1024);
+    }
+  } catch (err) {
+    console.error('Failed to get DB size:', err);
+  }
+  
+  res.json({
+    messageCount: messageCount.count,
+    userCount: userCount.count,
+    roomCount: roomCount.count,
+    dmCount: dmCount.count,
+    dbSizeMB: dbSizeMB.toFixed(2),
+  });
+});
+
 app.get('/api/admin/users', authMiddleware, requireAdmin, (req, res) => {
   const users = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, banned_at, banned_reason, created_at, last_seen FROM users ORDER BY created_at DESC').all();
   res.json(users.map((u) => ({
