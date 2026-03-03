@@ -491,18 +491,6 @@ export default function AuthPage() {
 
         {/* Footer - removed for cleaner UI */}
 
-        {step === 'check-email' && (
-          <div className="authCard">
-            <h1 className="authTitle">Check your email</h1>
-            <p className="authText">
-              We sent a confirmation link to <strong>{email}</strong>
-            </p>
-            <p className="authText">
-              Click the link in the email to verify your account and start chatting.
-            </p>
-          </div>
-        )}
-
         {step === 'forgot-password' && (
           <form onSubmit={handleForgotPassword} style={{ marginTop: '24px' }}>
             {error && <div style={errorStyle}>{error}</div>}
