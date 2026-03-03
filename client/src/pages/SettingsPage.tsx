@@ -48,6 +48,8 @@ export default function SettingsPage() {
     setError('');
     try {
       console.log('[Settings] Updating display name to:', displayName.trim());
+      console.log('[Settings] Using token:', token ? 'Present' : 'Missing');
+      console.log('[Settings] API URL:', import.meta.env.VITE_API_URL || 'http://localhost:3001/api');
       
       // Call backend API to update profile
       const response = await api('/me/profile', {
@@ -66,7 +68,20 @@ export default function SettingsPage() {
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       console.error('[Settings] Profile update error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to update profile');
+      console.error('[Settings] Error details:', {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      
+      let errorMessage = 'Failed to update profile';
+      if (err instanceof Error) {
+        if (err.message.includes('<!DOCTYPE')) {
+          errorMessage = 'Server not responding correctly. Please restart your local server or wait for production deployment.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      setError(errorMessage);
     } finally {
       setSaving(false);
     }

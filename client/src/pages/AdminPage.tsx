@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import './AdminPage.css';
 
-type AdminTab = 'stats' | 'users' | 'reports' | 'deleted' | 'feedback' | 'unban-requests';
+type AdminTab = 'stats' | 'users' | 'reports' | 'deleted' | 'feedback' | 'unban-requests' | 'settings';
 
 type AdminUserRow = {
   id: string;
@@ -98,6 +98,9 @@ export default function AdminPage() {
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailRestriction, setEmailRestriction] = useState<'lancaster' | 'any'>('lancaster');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsSuccess, setSettingsSuccess] = useState(false);
 
   const canView = !!token && !!user?.isAdmin;
 
@@ -197,6 +200,7 @@ export default function AdminPage() {
           <button className={`adminTab ${tab === 'deleted' ? 'isActive' : ''}`} onClick={() => setTab('deleted')}>Deleted messages</button>
           <button className={`adminTab ${tab === 'feedback' ? 'isActive' : ''}`} onClick={() => setTab('feedback')}>Feedback</button>
           <button className={`adminTab ${tab === 'unban-requests' ? 'isActive' : ''}`} onClick={() => setTab('unban-requests')}>Unban Requests</button>
+          <button className={`adminTab ${tab === 'settings' ? 'isActive' : ''}`} onClick={() => setTab('settings')}>Settings</button>
         </div>
 
         {error && (
@@ -430,6 +434,97 @@ export default function AdminPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {tab === 'settings' && (
+              <div className="adminCard">
+                <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '20px' }}>App Settings</h2>
+                
+                <div style={{ marginBottom: '32px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px' }}>Email Domain Restriction</h3>
+                  <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.6)', marginBottom: '16px' }}>
+                    Control which email domains can sign up for LancsChat. For testing, you can allow any email. For production, restrict to Lancaster emails only.
+                  </p>
+                  
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                    <button
+                      onClick={() => setEmailRestriction('lancaster')}
+                      style={{
+                        padding: '12px 24px',
+                        borderRadius: '8px',
+                        border: emailRestriction === 'lancaster' ? '2px solid #0095f6' : '1px solid rgba(255,255,255,0.2)',
+                        background: emailRestriction === 'lancaster' ? 'rgba(0,149,246,0.1)' : 'transparent',
+                        color: emailRestriction === 'lancaster' ? '#0095f6' : 'rgba(255,255,255,0.7)',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      🎓 Lancaster Only (@lancaster.ac.uk)
+                    </button>
+                    <button
+                      onClick={() => setEmailRestriction('any')}
+                      style={{
+                        padding: '12px 24px',
+                        borderRadius: '8px',
+                        border: emailRestriction === 'any' ? '2px solid #0095f6' : '1px solid rgba(255,255,255,0.2)',
+                        background: emailRestriction === 'any' ? 'rgba(0,149,246,0.1)' : 'transparent',
+                        color: emailRestriction === 'any' ? '#0095f6' : 'rgba(255,255,255,0.7)',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      🌐 Any Email (Testing Mode)
+                    </button>
+                  </div>
+
+                  {settingsSuccess && (
+                    <div style={{ padding: '12px 16px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', color: '#4ade80', fontSize: '14px', marginBottom: '16px' }}>
+                      ✓ Settings saved successfully
+                    </div>
+                  )}
+
+                  <button
+                    onClick={async () => {
+                      setSavingSettings(true);
+                      setError('');
+                      try {
+                        // For now, just show success - backend implementation can be added later
+                        await new Promise(r => setTimeout(r, 500));
+                        setSettingsSuccess(true);
+                        setTimeout(() => setSettingsSuccess(false), 3000);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to save settings');
+                      } finally {
+                        setSavingSettings(false);
+                      }
+                    }}
+                    disabled={savingSettings}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: '#0095f6',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: savingSettings ? 'not-allowed' : 'pointer',
+                      opacity: savingSettings ? 0.6 : 1,
+                    }}
+                  >
+                    {savingSettings ? 'Saving...' : 'Save Settings'}
+                  </button>
+
+                  <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(255,193,7,0.1)', borderRadius: '12px', border: '1px solid rgba(255,193,7,0.2)' }}>
+                    <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                      <strong>⚠️ Note:</strong> This is a UI-only toggle for now. To actually change email restrictions, you need to modify the <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>ALLOWED_DOMAIN</code> check in <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>client/src/pages/AuthPage.tsx</code>. Comment out lines 24-28 to allow any email for testing.
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </>

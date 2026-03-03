@@ -592,6 +592,15 @@ export default function ChatPage() {
                 <span className="sidebarNavLabel">{item.label}</span>
               </button>
             ))}
+            {user?.isAdmin && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="sidebarNavItem"
+              >
+                <Shield className="lcIconNav" />
+                <span className="sidebarNavLabel">Admin</span>
+              </button>
+            )}
           </nav>
 
           <div className="sidebarBottom">
