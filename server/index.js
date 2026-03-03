@@ -381,11 +381,11 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
     // 4. Delete user's unban requests (if table exists)
     safeDelete('DELETE FROM unban_requests WHERE user_id = ?', req.userId);
     
-    // 5. Soft delete all messages sent by user (keeps message history but marks as deleted)
-    safeDelete('UPDATE messages SET is_deleted = 1, deleted_at = unixepoch(), deleted_by = ? WHERE sender_id = ?', req.userId, req.userId);
-    
-    // 6. Delete DM conversations (after messages are handled)
+    // 5. Delete DM conversations
     safeDelete('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?', req.userId, req.userId);
+    
+    // 6. Delete all messages sent by user (hard delete to avoid foreign key issues)
+    safeDelete('DELETE FROM messages WHERE sender_id = ?', req.userId);
     
     // 7. Finally, delete the user
     db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
