@@ -101,9 +101,19 @@ export default function SettingsPage() {
         method: 'DELETE',
         token,
       });
-      console.log('[Settings] Account deleted successfully');
-      // Logout and redirect
-      await logout();
+      console.log('[Settings] Account deleted successfully from backend');
+      
+      // Logout from Supabase (may fail with 403 if user already deleted, which is fine)
+      try {
+        console.log('[Settings] Logging out from Supabase...');
+        await logout();
+        console.log('[Settings] Supabase logout successful');
+      } catch (logoutErr) {
+        console.log('[Settings] Supabase logout failed (expected if user deleted):', logoutErr);
+        // Force logout by clearing local session
+        await supabase.auth.signOut({ scope: 'local' });
+        window.location.href = '/';
+      }
     } catch (err) {
       console.error('[Settings] Account deletion error:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete account');

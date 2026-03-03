@@ -392,13 +392,19 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
     
     // Delete from Supabase (if client is available)
     if (supabase) {
-      const { error: supabaseError } = await supabase.auth.admin.deleteUser(req.userId);
+      console.log('[DELETE /api/me/account] Attempting Supabase deletion...');
+      const { data, error: supabaseError } = await supabase.auth.admin.deleteUser(req.userId);
       if (supabaseError) {
-        console.error('[DELETE /api/me/account] Supabase deletion failed:', supabaseError);
+        console.error('[DELETE /api/me/account] Supabase deletion failed:', supabaseError.message, supabaseError.status);
+        // Continue anyway - local DB deletion succeeded
+      } else {
+        console.log('[DELETE /api/me/account] Supabase deletion successful');
       }
+    } else {
+      console.log('[DELETE /api/me/account] Supabase client not available, skipping Supabase deletion');
     }
     
-    console.log('[DELETE /api/me/account] Account deleted successfully');
+    console.log('[DELETE /api/me/account] Account deleted successfully from local DB');
     res.json({ ok: true });
   } catch (err) {
     console.error('[DELETE /api/me/account] Error:', err);
