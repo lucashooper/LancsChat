@@ -319,10 +319,9 @@ export default function SettingsPage() {
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
                   className="dangerButton"
-                  disabled={user?.isAdmin}
                 >
                   <Trash2 size={16} />
-                  {user?.isAdmin ? 'Admin accounts cannot be deleted' : 'Delete Account'}
+                  Delete Account
                 </button>
               </div>
 

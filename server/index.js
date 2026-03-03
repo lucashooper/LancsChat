@@ -5,7 +5,14 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const { createClient } = require('@supabase/supabase-js');
 const db = require('./db');
+
+// Initialize Supabase client for admin operations
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
+);
 
 const app = express();
 const server = http.createServer(app);
@@ -356,11 +363,6 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
   
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
-  }
-  
-  // Protect admin account from deletion
-  if (user.email && user.email.toLowerCase() === ADMIN_EMAIL) {
-    return res.status(403).json({ error: 'Cannot delete admin account' });
   }
   
   try {
