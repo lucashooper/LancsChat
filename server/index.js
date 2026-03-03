@@ -357,25 +357,27 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
   try {
     console.log('[DELETE /api/me/account] Deleting account for user:', req.userId);
     
-    // Delete user's messages (soft delete)
-    db.prepare('UPDATE messages SET is_deleted = 1, deleted_at = unixepoch(), deleted_by = ? WHERE sender_id = ?').run(req.userId, req.userId);
+    // Delete in order to respect foreign key constraints
     
-    // Delete user's reactions
+    // 1. Delete user's reactions
     db.prepare('DELETE FROM reactions WHERE user_id = ?').run(req.userId);
     
-    // Delete user's reports
+    // 2. Delete user's reports
     db.prepare('DELETE FROM message_reports WHERE reporter_id = ?').run(req.userId);
     
-    // Delete user's DM conversations
-    db.prepare('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?').run(req.userId, req.userId);
-    
-    // Delete user's pinned messages
+    // 3. Delete user's pinned messages
     db.prepare('DELETE FROM pinned_messages WHERE pinned_by = ?').run(req.userId);
     
-    // Delete user's unban requests
+    // 4. Delete user's unban requests
     db.prepare('DELETE FROM unban_requests WHERE user_id = ?').run(req.userId);
     
-    // Finally, delete the user
+    // 5. Soft delete all messages sent by user (keeps message history but marks as deleted)
+    db.prepare('UPDATE messages SET is_deleted = 1, deleted_at = unixepoch(), deleted_by = ? WHERE sender_id = ?').run(req.userId, req.userId);
+    
+    // 6. Delete DM conversations (after messages are handled)
+    db.prepare('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?').run(req.userId, req.userId);
+    
+    // 7. Finally, delete the user
     db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
     
     // Delete from Supabase (if client is available)
