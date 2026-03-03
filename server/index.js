@@ -8,11 +8,14 @@ const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
 const db = require('./db');
 
-// Initialize Supabase client for admin operations
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
-);
+// Initialize Supabase client for admin operations (optional - only used for account deletion)
+let supabase = null;
+if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+  );
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -375,10 +378,12 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
     // Finally, delete the user
     db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
     
-    // Delete from Supabase
-    const { error: supabaseError } = await supabase.auth.admin.deleteUser(req.userId);
-    if (supabaseError) {
-      console.error('[DELETE /api/me/account] Supabase deletion failed:', supabaseError);
+    // Delete from Supabase (if client is available)
+    if (supabase) {
+      const { error: supabaseError } = await supabase.auth.admin.deleteUser(req.userId);
+      if (supabaseError) {
+        console.error('[DELETE /api/me/account] Supabase deletion failed:', supabaseError);
+      }
     }
     
     console.log('[DELETE /api/me/account] Account deleted successfully');
