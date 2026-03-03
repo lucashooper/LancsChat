@@ -89,12 +89,8 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
     user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: avatarUrl || null, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
   } else {
     console.log('[ensureLocalUser] Existing user found:', { current: user.display_name, new: displayName });
-    // Update display_name, avatar_color, and avatar_url from Supabase metadata
-    if (displayName && displayName !== user.display_name) {
-      console.log('[ensureLocalUser] Updating display_name from', user.display_name, 'to', displayName);
-      db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, supabaseUserId);
-      user.display_name = displayName;
-    }
+    // Don't overwrite display_name from Supabase - local DB is source of truth
+    // (Users update their display name via /api/me/profile which updates local DB only)
     if (avatarColor && avatarColor !== user.avatar_color) {
       console.log('[ensureLocalUser] Updating avatar_color');
       db.prepare('UPDATE users SET avatar_color = ? WHERE id = ?').run(avatarColor, supabaseUserId);
@@ -332,16 +328,6 @@ app.put('/api/me/profile', authMiddleware, async (req, res) => {
   try {
     console.log('[PUT /api/me/profile] Updating display name for user:', req.userId, 'to:', trimmedName);
     db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(trimmedName, req.userId);
-    
-    // Also update Supabase metadata to keep in sync
-    const { error: supabaseError } = await supabase.auth.admin.updateUserById(
-      req.userId,
-      { user_metadata: { display_name: trimmedName } }
-    );
-    
-    if (supabaseError) {
-      console.error('[PUT /api/me/profile] Supabase update failed:', supabaseError);
-    }
     
     const updated = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin FROM users WHERE id = ?').get(req.userId);
     console.log('[PUT /api/me/profile] Updated user:', updated);
