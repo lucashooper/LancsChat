@@ -357,25 +357,35 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
   try {
     console.log('[DELETE /api/me/account] Deleting account for user:', req.userId);
     
+    // Helper to safely delete from table if it exists
+    const safeDelete = (query, ...params) => {
+      try {
+        db.prepare(query).run(...params);
+      } catch (err) {
+        // Table might not exist in older databases - that's ok
+        console.log('[DELETE /api/me/account] Skipping:', query, err.message);
+      }
+    };
+    
     // Delete in order to respect foreign key constraints
     
-    // 1. Delete user's reactions
-    db.prepare('DELETE FROM reactions WHERE user_id = ?').run(req.userId);
+    // 1. Delete user's reactions (if table exists)
+    safeDelete('DELETE FROM reactions WHERE user_id = ?', req.userId);
     
-    // 2. Delete user's reports
-    db.prepare('DELETE FROM message_reports WHERE reporter_id = ?').run(req.userId);
+    // 2. Delete user's reports (if table exists)
+    safeDelete('DELETE FROM message_reports WHERE reporter_id = ?', req.userId);
     
-    // 3. Delete user's pinned messages
-    db.prepare('DELETE FROM pinned_messages WHERE pinned_by = ?').run(req.userId);
+    // 3. Delete user's pinned messages (if table exists)
+    safeDelete('DELETE FROM pinned_messages WHERE pinned_by = ?', req.userId);
     
-    // 4. Delete user's unban requests
-    db.prepare('DELETE FROM unban_requests WHERE user_id = ?').run(req.userId);
+    // 4. Delete user's unban requests (if table exists)
+    safeDelete('DELETE FROM unban_requests WHERE user_id = ?', req.userId);
     
     // 5. Soft delete all messages sent by user (keeps message history but marks as deleted)
-    db.prepare('UPDATE messages SET is_deleted = 1, deleted_at = unixepoch(), deleted_by = ? WHERE sender_id = ?').run(req.userId, req.userId);
+    safeDelete('UPDATE messages SET is_deleted = 1, deleted_at = unixepoch(), deleted_by = ? WHERE sender_id = ?', req.userId, req.userId);
     
     // 6. Delete DM conversations (after messages are handled)
-    db.prepare('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?').run(req.userId, req.userId);
+    safeDelete('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?', req.userId, req.userId);
     
     // 7. Finally, delete the user
     db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
