@@ -309,6 +309,98 @@ app.post('/api/me/intro-seen', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
+// Update user profile (display name)
+app.put('/api/me/profile', authMiddleware, async (req, res) => {
+  const { displayName } = req.body;
+  
+  if (!displayName || typeof displayName !== 'string' || !displayName.trim()) {
+    return res.status(400).json({ error: 'Display name is required' });
+  }
+  
+  const trimmedName = displayName.trim();
+  if (trimmedName.length > 50) {
+    return res.status(400).json({ error: 'Display name must be 50 characters or less' });
+  }
+  
+  try {
+    console.log('[PUT /api/me/profile] Updating display name for user:', req.userId, 'to:', trimmedName);
+    db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(trimmedName, req.userId);
+    
+    // Also update Supabase metadata to keep in sync
+    const { error: supabaseError } = await supabase.auth.admin.updateUserById(
+      req.userId,
+      { user_metadata: { display_name: trimmedName } }
+    );
+    
+    if (supabaseError) {
+      console.error('[PUT /api/me/profile] Supabase update failed:', supabaseError);
+    }
+    
+    const updated = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin FROM users WHERE id = ?').get(req.userId);
+    console.log('[PUT /api/me/profile] Updated user:', updated);
+    
+    res.json({
+      displayName: updated.display_name,
+      avatarColor: updated.avatar_color,
+      avatarUrl: updated.avatar_url,
+    });
+  } catch (err) {
+    console.error('[PUT /api/me/profile] Error:', err);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Delete user account
+app.delete('/api/me/account', authMiddleware, async (req, res) => {
+  const user = db.prepare('SELECT email, is_admin FROM users WHERE id = ?').get(req.userId);
+  
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  // Protect admin account from deletion
+  if (user.email && user.email.toLowerCase() === ADMIN_EMAIL) {
+    return res.status(403).json({ error: 'Cannot delete admin account' });
+  }
+  
+  try {
+    console.log('[DELETE /api/me/account] Deleting account for user:', req.userId);
+    
+    // Delete user's messages (soft delete)
+    db.prepare('UPDATE messages SET is_deleted = 1, deleted_at = unixepoch(), deleted_by = ? WHERE sender_id = ?').run(req.userId, req.userId);
+    
+    // Delete user's reactions
+    db.prepare('DELETE FROM reactions WHERE user_id = ?').run(req.userId);
+    
+    // Delete user's reports
+    db.prepare('DELETE FROM message_reports WHERE reporter_id = ?').run(req.userId);
+    
+    // Delete user's DM conversations
+    db.prepare('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?').run(req.userId, req.userId);
+    
+    // Delete user's pinned messages
+    db.prepare('DELETE FROM pinned_messages WHERE pinned_by = ?').run(req.userId);
+    
+    // Delete user's unban requests
+    db.prepare('DELETE FROM unban_requests WHERE user_id = ?').run(req.userId);
+    
+    // Finally, delete the user
+    db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
+    
+    // Delete from Supabase
+    const { error: supabaseError } = await supabase.auth.admin.deleteUser(req.userId);
+    if (supabaseError) {
+      console.error('[DELETE /api/me/account] Supabase deletion failed:', supabaseError);
+    }
+    
+    console.log('[DELETE /api/me/account] Account deleted successfully');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[DELETE /api/me/account] Error:', err);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
 // Get email by username for login
 app.get('/api/email-by-username', (req, res) => {
   const { username } = req.query;

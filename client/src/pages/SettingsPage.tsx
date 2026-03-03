@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { User, MessageSquare, Loader2, Check, X, ChevronRight, Shield, Info, Camera } from 'lucide-react';
+import { api } from '../api';
+import { User, MessageSquare, Loader2, Check, X, ChevronRight, Shield, Info, Camera, Trash2 } from 'lucide-react';
 import './SettingsPage.css';
 
 type SettingsSection = 'menu' | 'profile' | 'feedback' | 'about';
 
 export default function SettingsPage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout, token } = useAuth();
   const [section, setSection] = useState<SettingsSection>('profile');
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [feedback, setFeedback] = useState('');
@@ -19,6 +20,8 @@ export default function SettingsPage() {
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [error, setError] = useState('');
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(user?.avatarUrl || null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -45,15 +48,20 @@ export default function SettingsPage() {
     setError('');
     try {
       console.log('[Settings] Updating display name to:', displayName.trim());
-      const { data, error: updateError } = await supabase.auth.updateUser({
-        data: { display_name: displayName.trim() }
-      });
-      console.log('[Settings] Supabase update response:', { data, error: updateError });
-      if (updateError) throw updateError;
       
-      console.log('[Settings] Calling refreshUser...');
+      // Call backend API to update profile
+      const response = await api('/me/profile', {
+        method: 'PUT',
+        token: token || '',
+        body: { displayName: displayName.trim() },
+      });
+      
+      console.log('[Settings] Backend update response:', response);
+      
+      // Refresh user data from server
       await refreshUser();
       console.log('[Settings] User refreshed, new user data:', user);
+      
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
@@ -61,6 +69,31 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!token) {
+      setError('Not authenticated');
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+    try {
+      console.log('[Settings] Deleting account...');
+      await api('/me/account', {
+        method: 'DELETE',
+        token,
+      });
+      console.log('[Settings] Account deleted successfully');
+      // Logout and redirect
+      await logout();
+    } catch (err) {
+      console.error('[Settings] Account deletion error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete account');
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -275,6 +308,61 @@ export default function SettingsPage() {
                   )}
                 </button>
               </form>
+
+              {/* Delete Account Section */}
+              <div className="dangerZone">
+                <h3 className="dangerZoneTitle">Danger Zone</h3>
+                <p className="dangerZoneDesc">
+                  Once you delete your account, there is no going back. All your messages will be deleted.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="dangerButton"
+                  disabled={user?.isAdmin}
+                >
+                  <Trash2 size={16} />
+                  {user?.isAdmin ? 'Admin accounts cannot be deleted' : 'Delete Account'}
+                </button>
+              </div>
+
+              {/* Delete Confirmation Modal */}
+              {showDeleteConfirm && (
+                <div className="modalOverlay" onClick={() => setShowDeleteConfirm(false)}>
+                  <div className="modalContent" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="modalTitle">Delete Account?</h3>
+                    <p className="modalDesc">
+                      This action cannot be undone. Your account and all your messages will be permanently deleted.
+                    </p>
+                    <div className="modalActions">
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="secondaryButton"
+                        disabled={deleting}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDeleteAccount}
+                        className="dangerButton"
+                        disabled={deleting}
+                      >
+                        {deleting ? (
+                          <>
+                            <Loader2 className="settingsMenuIcon spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 size={16} />
+                            Delete Forever
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
