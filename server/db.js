@@ -158,6 +158,16 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_room_last_read_user ON room_last_read(user_id);
 
+  CREATE TABLE IF NOT EXISTS pending_email_changes (
+    user_id TEXT PRIMARY KEY,
+    new_email TEXT NOT NULL,
+    token TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_pending_email_token ON pending_email_changes(token);
+
   CREATE TABLE IF NOT EXISTS pinned_messages (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL,

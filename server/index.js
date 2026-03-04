@@ -398,66 +398,33 @@ app.post('/api/me/update-email', authMiddleware, async (req, res) => {
     const newEmail = email.toLowerCase().trim();
     console.log('[update-email] Processing email update for user:', req.userId, 'to:', newEmail);
 
-    // Update in Supabase via admin API - send confirmation email
-    if (!supabase) {
-      console.error('[update-email] Supabase client not initialized! Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars');
-      return res.status(500).json({ error: 'Email service not configured' });
-    }
-
-    // Step 1: Generate email confirmation link using Supabase
-    // Use 'magiclink' type since the user already exists (changing email, not signing up)
-    console.log('[update-email] Step 1: Generating confirmation link...');
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: newEmail,
-      options: {
-        redirectTo: process.env.CLIENT_URL || 'http://localhost:5174',
-      },
-    });
-    
-    if (linkError) {
-      console.error('[update-email] Failed to generate link:', JSON.stringify(linkError, null, 2));
-      return res.status(500).json({ error: 'Failed to generate confirmation link' });
-    }
-    
-    const confirmationUrl = linkData?.properties?.action_link;
-    if (!confirmationUrl) {
-      console.error('[update-email] No confirmation URL in response:', linkData);
-      return res.status(500).json({ error: 'Failed to generate confirmation URL' });
-    }
-    
-    console.log('[update-email] Confirmation URL generated successfully');
-    
-    // Step 2: Update email in Supabase
-    // Note: Supabase automatically marks the new email as unconfirmed when you change it
-    console.log('[update-email] Step 2: Updating email in Supabase...');
-    const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(req.userId, {
-      email: newEmail,
-    });
-    
-    if (updateError) {
-      console.error('[update-email] Failed to update email:', JSON.stringify(updateError, null, 2));
-      return res.status(500).json({ error: updateError.message || 'Failed to update email' });
-    }
-    
-    console.log('[update-email] Email updated in Supabase (unconfirmed)');
-    
-    // Step 3: Send confirmation email via Resend
     if (!resend) {
       console.error('[update-email] Resend not initialized! Check RESEND_API_KEY env var');
       return res.status(500).json({ error: 'Email service not configured' });
     }
+
+    // Generate a simple confirmation token
+    const crypto = require('crypto');
+    const confirmToken = crypto.randomBytes(32).toString('hex');
+    const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/confirm-email?token=${confirmToken}&userId=${req.userId}`;
     
-    console.log('[update-email] Step 3: Sending confirmation email via Resend...');
+    console.log('[update-email] Generated confirmation URL');
     
-    // Read the email template
+    // Store the pending email change in local DB with token
+    console.log('[update-email] Storing pending email change...');
+    db.prepare(`
+      INSERT OR REPLACE INTO pending_email_changes (user_id, new_email, token, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(req.userId, newEmail, confirmToken, Date.now());
+    
+    // Send confirmation email via Resend
+    console.log('[update-email] Sending confirmation email via Resend...');
+    
     const fs = require('fs');
     const path = require('path');
     const templatePath = path.join(__dirname, 'email-templates', 'signup-confirmation.html');
     let emailHtml = fs.readFileSync(templatePath, 'utf8');
-    
-    // Replace the confirmation URL placeholder
-    emailHtml = emailHtml.replace('{{ .ConfirmationURL }}', confirmationUrl);
+    emailHtml = emailHtml.replace('{{ .ConfirmationURL }}', confirmUrl);
     
     try {
       const { data: emailData, error: emailError } = await resend.emails.send({
@@ -477,18 +444,71 @@ app.post('/api/me/update-email', authMiddleware, async (req, res) => {
       console.error('[update-email] Error sending email:', emailErr);
       return res.status(500).json({ error: 'Failed to send confirmation email' });
     }
-
-    // Update in local DB
-    console.log('[update-email] Updating local DB...');
-    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(newEmail, req.userId);
     
-    console.log('[update-email] ✅ Email update complete. Confirmation email sent to:', newEmail);
+    console.log('[update-email] ✅ Email update initiated. Confirmation email sent to:', newEmail);
 
     res.json({ ok: true, email: newEmail, emailConfirmed: false });
   } catch (err) {
     console.error('[update-email] Unexpected error:', err);
     console.error('[update-email] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
     res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update email' });
+  }
+});
+
+// Confirm email change
+app.get('/api/confirm-email', async (req, res) => {
+  const { token, userId } = req.query;
+  
+  if (!token || !userId) {
+    return res.status(400).json({ error: 'Missing token or userId' });
+  }
+  
+  try {
+    console.log('[confirm-email] Confirming email for user:', userId);
+    
+    // Find the pending email change
+    const pending = db.prepare('SELECT * FROM pending_email_changes WHERE user_id = ? AND token = ?').get(userId, token);
+    
+    if (!pending) {
+      console.error('[confirm-email] Invalid or expired token');
+      return res.status(400).json({ error: 'Invalid or expired confirmation link' });
+    }
+    
+    // Check if token is older than 24 hours
+    const tokenAge = Date.now() - pending.created_at;
+    if (tokenAge > 24 * 60 * 60 * 1000) {
+      console.error('[confirm-email] Token expired');
+      db.prepare('DELETE FROM pending_email_changes WHERE user_id = ?').run(userId);
+      return res.status(400).json({ error: 'Confirmation link has expired' });
+    }
+    
+    // Update the user's email in local DB
+    console.log('[confirm-email] Updating email to:', pending.new_email);
+    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(pending.new_email, userId);
+    
+    // Update in Supabase if available
+    if (supabase) {
+      try {
+        await supabase.auth.admin.updateUserById(userId, {
+          email: pending.new_email,
+          email_confirm: true,
+        });
+        console.log('[confirm-email] Email updated in Supabase');
+      } catch (err) {
+        console.error('[confirm-email] Failed to update Supabase (non-critical):', err);
+      }
+    }
+    
+    // Delete the pending change
+    db.prepare('DELETE FROM pending_email_changes WHERE user_id = ?').run(userId);
+    
+    console.log('[confirm-email] ✅ Email confirmed successfully');
+    
+    // Redirect to the app
+    res.redirect(process.env.CLIENT_URL || 'http://localhost:5174');
+  } catch (err) {
+    console.error('[confirm-email] Error:', err);
+    res.status(500).json({ error: 'Failed to confirm email' });
   }
 });
 
