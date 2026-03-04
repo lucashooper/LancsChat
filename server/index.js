@@ -406,7 +406,8 @@ app.post('/api/me/update-email', authMiddleware, async (req, res) => {
     // Generate a simple confirmation token
     const crypto = require('crypto');
     const confirmToken = crypto.randomBytes(32).toString('hex');
-    const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/confirm-email?token=${confirmToken}&userId=${req.userId}`;
+    const serverUrl = process.env.RENDER_EXTERNAL_URL || 'http://localhost:3001';
+    const confirmUrl = `${serverUrl}/api/confirm-email?token=${confirmToken}&userId=${req.userId}`;
     
     console.log('[update-email] Generated confirmation URL');
     
