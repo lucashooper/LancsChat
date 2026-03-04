@@ -1142,7 +1142,7 @@ export default function ChatPage() {
           onClick={() => setShowOnlinePanel(true)}
           title="Show online users"
         >
-          <Eye size={18} />
+          <Eye size={20} />
         </button>
       )}
 

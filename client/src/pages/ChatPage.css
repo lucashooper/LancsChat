@@ -368,6 +368,7 @@
   padding-bottom: 24px;
   padding-left: 32px;
   padding-right: 32px;
+  margin-right: -32px;
   flex-shrink: 0;
   border-bottom: 1px solid #262626;
 }
@@ -1509,8 +1510,8 @@
 
 .showOnlineBtn {
   position: fixed;
-  right: 80px;
-  top: 20px;
+  right: 48px;
+  top: 24px;
   background: #262626;
   border: none;
   color: #fafafa;
