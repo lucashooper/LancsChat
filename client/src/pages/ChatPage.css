@@ -5,6 +5,7 @@
   gap: 32px;
   padding: 0 0 0 32px;
   background: #000;
+  overflow: hidden;
 }
 
 /* ─── LEFT SIDEBAR ─── */
@@ -370,7 +371,7 @@
   padding-right: 32px;
   margin-right: -32px;
   flex-shrink: 0;
-  border-bottom: 1px solid #262626;
+  position: relative;
 }
 
 .chatHeaderRow {
@@ -383,6 +384,19 @@
   font-size: 20px;
   font-weight: 600;
   color: #fff;
+}
+
+/* Full-width border line below the header area */
+.chatLayout::before {
+  content: '';
+  position: fixed;
+  top: 73px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #262626;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .messages {
@@ -1171,6 +1185,21 @@
   font-size: 13px;
 }
 
+.sendWarningLink {
+  background: none;
+  border: none;
+  color: rgba(234, 179, 8, 1);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.sendWarningLink:hover {
+  color: rgba(234, 179, 8, 0.8);
+}
+
 /* ─── EMPTY / WELCOME STATE ─── */
 .welcome {
   flex: 1;
@@ -1372,13 +1401,15 @@
 }
 
 .onlinePanelHeader {
-  padding: 20px 16px;
+  padding: 0 16px;
+  min-height: 85px;
   border-bottom: 1px solid #1a1a1a;
   display: flex;
   align-items: center;
   gap: 10px;
   color: rgba(255, 255, 255, 0.6);
   position: relative;
+  box-sizing: border-box;
 }
 
 .onlinePanelTitle {
@@ -1470,10 +1501,6 @@
   justify-content: center;
   transition: all 0.15s ease;
   flex-shrink: 0;
-  opacity: 0;
-}
-
-.onlineUserItem:hover .onlineDmBtn {
   opacity: 1;
 }
 
@@ -1509,8 +1536,8 @@
 }
 
 .showOnlineBtn {
-  position: fixed;
-  right: 48px;
+  position: absolute;
+  right: 54px;
   top: 24px;
   background: #262626;
   border: none;
@@ -1527,4 +1554,274 @@
 
 .showOnlineBtn:hover {
   background: #3a3a3a;
+}
+
+/* ─── EMAIL VERIFICATION BANNER ─── */
+.emailBanner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #1a3a5c, #1a2a4c);
+  border-bottom: 1px solid #2a5a8c;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  z-index: 2000;
+}
+
+.emailBannerText {
+  font-size: 13px;
+  color: #c8ddf0;
+  text-align: center;
+}
+
+.emailBannerLink {
+  background: none;
+  border: none;
+  color: #5eb5ff;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px;
+  padding: 0;
+}
+
+.emailBannerLink:hover {
+  color: #8ccfff;
+}
+
+.emailBannerClose {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.emailBannerClose:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Mobile back button - hidden on desktop */
+.mobileBackBtn {
+  display: none;
+}
+
+/* ─── MOBILE RESPONSIVE ─── */
+@media (max-width: 768px) {
+  /* Show mobile back button */
+  .mobileBackBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #fafafa;
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 4px;
+    margin-left: -4px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .mobileBackBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Remove gaps and padding on mobile */
+  .chatLayout {
+    gap: 0;
+    padding: 0;
+  }
+
+  /* ── When NOT in a chat AND NOT in settings: hide mainPanel, show sidebar + middlePanel ── */
+  .chatLayout:not(.chatOpen):not(.settingsOpen) .mainPanel {
+    display: none;
+  }
+
+  /* ── When IN a chat: hide sidebar + middlePanel, fullscreen mainPanel ── */
+  .chatLayout.chatOpen .sidebar,
+  .chatLayout.chatOpen .middlePanel {
+    display: none;
+  }
+
+  .chatLayout.chatOpen .mainPanel {
+    width: 100vw;
+  }
+
+  /* Adjust chat header for mobile */
+  .chatHeader {
+    padding: 16px;
+    margin-right: 0;
+    min-height: auto;
+  }
+
+  .chatHeaderTitle {
+    font-size: 17px;
+  }
+
+  /* Hide online panel on mobile */
+  .onlinePanel {
+    display: none;
+  }
+
+  /* Hide show online button on mobile */
+  .showOnlineBtn {
+    display: none;
+  }
+
+  /* ── Sidebar on mobile: slim left column ── */
+  .sidebar {
+    width: 56px;
+    padding: 12px 8px;
+  }
+
+  /* Logo smaller on mobile */
+  .sidebarLogo {
+    padding-bottom: 20px;
+  }
+
+  .sidebarLogoImg {
+    height: 24px;
+    width: 24px;
+  }
+
+  /* Nav items bigger touch targets */
+  .sidebarNavItem {
+    height: 48px;
+    border-radius: 10px;
+    padding: 0 12px;
+    justify-content: center;
+  }
+
+  .sidebarNavItem svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* User avatar and logout visible */
+  .sidebarBottom {
+    padding-top: 16px;
+    padding-bottom: 16px;
+    gap: 12px;
+  }
+
+  .sidebarUserRow {
+    padding-left: 8px;
+    justify-content: center;
+  }
+
+  .sidebarUserAvatarImg,
+  .sidebarUserAvatarFallback {
+    width: 32px;
+    height: 32px;
+  }
+
+  /* Logout button */
+  .sidebarNavItem:last-child {
+    height: 48px;
+  }
+
+  /* ── Middle panel: take remaining width ── */
+  .middlePanel {
+    flex: 1;
+    width: auto;
+    max-width: none;
+  }
+
+  .middlePanelHeader {
+    padding: 16px;
+  }
+
+  .middlePanelTitle {
+    font-size: 22px;
+  }
+
+  /* Room/DM list items */
+  .listItem {
+    padding: 14px 16px;
+  }
+
+  .listItemTitle {
+    font-size: 15px;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  .listItemDesc {
+    font-size: 13px;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  /* Adjust message input */
+  .inputBar {
+    padding: 12px 16px;
+  }
+
+  /* Adjust message bubbles */
+  .messageBubble {
+    max-width: 85%;
+  }
+
+  /* Adjust pinned button */
+  .pinnedBtn {
+    padding: 6px 10px;
+  }
+
+  /* Hide welcome text on the right (select a room) */
+  .welcome {
+    display: none;
+  }
+
+  /* ── Settings page: hide sidebar, fullscreen settings ── */
+  .chatLayout.settingsOpen .sidebar {
+    display: none;
+  }
+
+  .chatLayout.settingsOpen .mainPanel {
+    width: 100vw;
+  }
+
+  /* Make modals full screen on mobile */
+  .modalOverlay {
+    padding: 0;
+  }
+
+  .modalBox {
+    width: 100vw;
+    height: 100vh;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+}
+
+/* Tablet adjustments */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .chatLayout {
+    gap: 16px;
+    padding: 0 0 0 16px;
+  }
+
+  .sidebar {
+    width: 64px;
+  }
+
+  .middlePanel {
+    width: 280px;
+  }
+
+  .onlinePanel {
+    width: 220px;
+  }
 }

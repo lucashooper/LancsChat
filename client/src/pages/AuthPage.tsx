@@ -21,7 +21,6 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
 
-    // Email domain restriction removed - open to all emails
     if (!displayName.trim()) {
       setError('Please choose a display name');
       return;
@@ -29,19 +28,67 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: email.toLowerCase(),
+      // If no email provided, generate a placeholder so Supabase auth works
+      const hasRealEmail = email.trim().length > 0;
+      const signUpEmail = hasRealEmail
+        ? email.toLowerCase().trim()
+        : `${displayName.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now()}@noemail.lancschat.lol`;
+
+      console.log('[Signup] Attempting signup with:', { signUpEmail, hasRealEmail, displayName: displayName.trim() });
+
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: signUpEmail,
         password,
         options: {
           data: {
             display_name: displayName.trim(),
+            has_real_email: hasRealEmail,
           },
           emailRedirectTo: import.meta.env.VITE_APP_URL || window.location.origin,
         },
       });
+
+      console.log('[Signup] Response:', { data, signUpError });
+      console.log('[Signup] Session:', data?.session);
+      console.log('[Signup] User:', data?.user);
+
       if (signUpError) throw signUpError;
-      setStep('check-email');
+
+      if (hasRealEmail) {
+        setStep('check-email');
+      } else {
+        // For no-email signups: auto-confirm via server admin API, then sign in
+        const userId = data?.user?.id;
+        if (userId) {
+          console.log('[Signup] Confirming user via server admin API...');
+          const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+          const confirmRes = await fetch(`${serverUrl}/api/auth/confirm-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId }),
+          });
+          const confirmData = await confirmRes.json();
+          console.log('[Signup] Confirm response:', confirmData);
+
+          if (!confirmRes.ok) {
+            throw new Error(confirmData.error || 'Failed to confirm account');
+          }
+
+          // Now sign in
+          console.log('[Signup] Auto-login after confirmation...');
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email: signUpEmail,
+            password,
+          });
+          if (loginError) {
+            console.error('[Signup] Auto-login failed:', loginError);
+            throw loginError;
+          }
+          console.log('[Signup] Auto-login successful');
+        }
+      }
     } catch (err: unknown) {
+      console.error('[Signup] Error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
@@ -288,10 +335,9 @@ export default function AuthPage() {
                 />
                 <input
                   type="email"
-                  placeholder="Email"
+                  placeholder="Email (optional)"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
                   style={inputStyle}
                   onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
                   onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
@@ -494,7 +540,7 @@ export default function AuthPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
               <input
                 type="email"
-                placeholder="University email (@lancaster.ac.uk)"
+                placeholder="Email"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
                 required

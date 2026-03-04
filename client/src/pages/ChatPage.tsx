@@ -5,7 +5,7 @@ import { useSocket } from '../context/SocketContext';
 import { api } from '../api';
 import {
   Hash, LogOut, Users,
-  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin, Eye, EyeOff
+  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin, Eye, EyeOff, ArrowLeft
 } from 'lucide-react';
 import SettingsPage from './SettingsPage';
 import { supabase } from '../lib/supabase';
@@ -108,6 +108,8 @@ export default function ChatPage() {
   const [showPinnedModal, setShowPinnedModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [showOnlinePanel, setShowOnlinePanel] = useState(true);
+  const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
+  const hasNoEmail = user?.email?.includes('@noemail.lancschat.lol') || !user?.email;
 
   const [reactionMap, setReactionMap] = useState<Record<string, ReactionSummary[]>>({});
   const visibleMessageIdsRef = useRef<Set<string>>(new Set());
@@ -586,7 +588,7 @@ export default function ChatPage() {
   // Settings uses a two-column layout: left nav + full settings panel
   if (activeTab === 'settings') {
     return (
-      <div className="chatLayout">
+      <div className="chatLayout settingsOpen">
         {/* Left Nav */}
         <div className="sidebar">
           <div className="sidebarLogo">
@@ -647,14 +649,26 @@ export default function ChatPage() {
         </div>
         {/* Settings content fills the rest */}
         <div className="mainPanel" style={{ overflowY: 'auto' }}>
-          <SettingsPage />
+          <SettingsPage onClose={() => setActiveTab('rooms')} />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="chatLayout">
+    <div className={`chatLayout ${chatOpen ? 'chatOpen' : ''}`}>
+
+      {/* Email verification banner */}
+      {hasNoEmail && !emailBannerDismissed && (
+        <div className="emailBanner">
+          <p className="emailBannerText">
+            Add an email in <button className="emailBannerLink" onClick={() => { setActiveTab('settings'); setChatOpen(false); }}>Settings</button> to unlock password reset and account recovery.
+          </p>
+          <button className="emailBannerClose" onClick={() => setEmailBannerDismissed(true)}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* ─── LEFT NAV (icon-only on small, icon+text on xl) ─── */}
       <div className="sidebar">
@@ -848,6 +862,9 @@ export default function ChatPage() {
               {activeTab === 'rooms' && selectedRoom && (
                 <>
                   <div className="chatHeaderRow">
+                    <button className="mobileBackBtn" onClick={() => setChatOpen(false)} title="Back to rooms">
+                      <ArrowLeft size={20} />
+                    </button>
                     <span style={{ fontSize: 24 }}>{selectedRoom.icon}</span>
                     <h2 className="chatHeaderTitle">{selectedRoom.name}</h2>
                   </div>
@@ -864,6 +881,9 @@ export default function ChatPage() {
 
               {activeTab === 'dms' && selectedDM && (
                 <div className="chatHeaderRow">
+                  <button className="mobileBackBtn" onClick={() => setChatOpen(false)} title="Back to messages">
+                    <ArrowLeft size={20} />
+                  </button>
                   <div
                     style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: selectedDM.other_color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 600, fontSize: 14, flexShrink: 0 }}
                   >
@@ -1026,6 +1046,18 @@ export default function ChatPage() {
                   {(sendError || cooldownSeconds > 0) && (
                     <div className="sendWarning">
                       {cooldownSeconds > 0 ? `You're sending messages too fast, slow down (${cooldownSeconds}s)` : sendError}
+                      {hasNoEmail && cooldownSeconds > 0 && (
+                        <>
+                          {' — '}
+                          <button 
+                            className="sendWarningLink" 
+                            type="button"
+                            onClick={() => { setActiveTab('settings'); setChatOpen(false); }}
+                          >
+                            Verify email to send faster
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

@@ -989,3 +989,19 @@
   background: #ffd89b !important;
   border-color: #a67c52 !important;
 }
+
+[data-theme="retro"] .mobileBackBtn {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .mobileBackBtn:hover {
+  background: rgba(107, 68, 35, 0.1) !important;
+}
+
+[data-theme="retro"] .settingsBackBtn {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .settingsBackBtn:hover {
+  color: #2c1810 !important;
+}

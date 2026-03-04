@@ -18,6 +18,7 @@
     "jsonwebtoken-esm": "^2.0.1",
     "jwks-rsa": "^3.2.2",
     "nodemailer": "^6.9.16",
+    "resend": "^6.9.3",
     "socket.io": "^4.8.1",
     "uuid": "^11.0.5"
   },

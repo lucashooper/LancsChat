@@ -1,7 +1,8 @@
 .settingsPage {
-  min-height: 100%;
+  min-height: 100vh;
   width: 100%;
   overflow-y: auto;
+  background: #000;
 }
 
 .settingsInner {
@@ -190,10 +191,37 @@
   color: #fff;
 }
 
+.profileEmailRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
 .profileEmail {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.4);
-  margin-top: 2px;
+}
+
+.emailBadge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.emailBadge.verified {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.emailBadge.unverified {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+  border: 1px solid rgba(234, 179, 8, 0.3);
 }
 
 .formStack {
@@ -541,4 +569,229 @@
 
 .spin {
   animation: spin 1s linear infinite;
+}
+
+/* Settings title row with back button */
+.settingsTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.settingsTitleRow .settingsTitle {
+  margin-bottom: 0;
+}
+
+/* Settings back button - hidden on desktop */
+.settingsBackBtn {
+  display: none;
+}
+
+/* ─── MOBILE RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .settingsInner {
+    padding: 16px;
+  }
+
+  .settingsTitle {
+    font-size: 22px;
+    margin-bottom: 16px;
+  }
+
+  .settingsTitleRow {
+    margin-bottom: 16px;
+  }
+
+  .settingsBackBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 8px;
+    margin-left: -8px;
+    border-radius: 8px;
+    transition: color 0.15s ease;
+  }
+
+  .settingsBackBtn:hover {
+    color: #fff;
+  }
+
+  /* Stack columns vertically */
+  .settingsColumns {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* Settings menu: full width */
+  .settingsMenu {
+    width: 100%;
+    display: block;
+  }
+
+  /* Settings content: full width, visible by default */
+  .settingsContent {
+    width: 100%;
+    display: block;
+  }
+
+  /* When content is NOT open: show menu, hide content */
+  .settingsColumns:not(.mobileContentOpen) .settingsContent {
+    display: none;
+  }
+
+  .settingsColumns:not(.mobileContentOpen) .settingsMenu {
+    display: block;
+  }
+
+  /* When content IS open: hide menu, show content */
+  .settingsColumns.mobileContentOpen .settingsMenu {
+    display: none;
+  }
+
+  .settingsColumns.mobileContentOpen .settingsContent {
+    display: block;
+  }
+
+  /* Also hide the "Settings" title when content is open */
+  .settingsColumns.mobileContentOpen ~ .settingsTitle {
+    display: none;
+  }
+
+  /* Settings back button visible on mobile */
+  .settingsBackBtn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 8px 0;
+    margin-bottom: 16px;
+    font-size: 15px;
+    transition: color 0.15s ease;
+  }
+
+  .settingsBackBtn:hover {
+    color: #fff;
+  }
+
+  .settingsMenuItem {
+    min-height: 52px;
+    padding: 14px 16px;
+    border-radius: 10px;
+  }
+
+  .settingsMenuLabel {
+    font-size: 15px;
+  }
+
+  .settingsMenuDesc {
+    font-size: 13px;
+  }
+
+  /* Settings content: full width */
+  .settingsContent {
+    width: 100%;
+  }
+
+  .settingsSectionTitle {
+    font-size: 20px;
+    margin-bottom: 24px;
+    padding-top: 0;
+  }
+
+  /* Profile card */
+  .profileCard {
+    padding: 16px;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .avatarButton {
+    width: 56px;
+    height: 56px;
+  }
+
+  .profileName {
+    font-size: 15px;
+  }
+
+  .profileEmail {
+    font-size: 13px;
+    word-break: break-all;
+  }
+
+  /* Form fields */
+  .formStack {
+    gap: 24px;
+  }
+
+  .fieldLabel {
+    font-size: 14px;
+  }
+
+  .textInput {
+    height: 44px;
+    font-size: 15px;
+  }
+
+  .helpText {
+    font-size: 12px;
+  }
+
+  .primaryButton {
+    height: 44px;
+    font-size: 15px;
+  }
+
+  /* Chips */
+  .chipRow {
+    flex-wrap: wrap;
+  }
+
+  .chipButton {
+    min-width: auto;
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  .textArea {
+    min-height: 120px;
+    font-size: 15px;
+  }
+
+  /* About */
+  .aboutText {
+    font-size: 15px;
+    margin-bottom: 24px;
+  }
+
+  /* Danger zone */
+  .dangerZone {
+    margin-top: 32px;
+    padding: 16px;
+  }
+
+  /* Modal */
+  .modalOverlay {
+    padding: 16px;
+  }
+
+  .modalContent {
+    padding: 24px;
+  }
+
+  .modalActions {
+    flex-direction: column-reverse;
+  }
+
+  .modalActions button {
+    width: 100%;
+  }
 }

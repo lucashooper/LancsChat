@@ -6,7 +6,11 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
+const { Resend } = require('resend');
 const db = require('./db');
+
+// Initialize Resend for sending emails
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Initialize Supabase client for admin operations (optional - only used for account deletion)
 let supabase = null;
@@ -105,7 +109,10 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
       user.avatar_url = avatarUrl;
     }
     const safeEmail = (email || '').toLowerCase();
-    if (safeEmail && user.email !== safeEmail) {
+    // Only update email if DB has a placeholder email (noemail.lancschat.lol)
+    // Once a user adds a real email, the DB is the source of truth, not the JWT
+    if (safeEmail && user.email !== safeEmail && user.email.includes('@noemail.lancschat.lol')) {
+      console.log('[ensureLocalUser] Updating email from placeholder to:', safeEmail);
       db.prepare('UPDATE users SET email = ? WHERE id = ?').run(safeEmail, supabaseUserId);
       user.email = safeEmail;
     }
@@ -188,19 +195,31 @@ function attachRepliesAndReactions(messages, viewerUserId) {
   }));
 }
 
-function canSendMessage(userId) {
+function canSendMessage(userId, isVerified = true) {
   const now = Math.floor(Date.now() / 1000);
   const state = rateLimitState.get(userId) || { timestamps: [], cooldownUntil: 0 };
   if (state.cooldownUntil && now < state.cooldownUntil) {
     return { ok: false, retryAfter: state.cooldownUntil - now };
   }
 
-  state.timestamps = state.timestamps.filter((t) => now - t < 10);
-  if (state.timestamps.length >= 5) {
-    state.cooldownUntil = now + 10;
-    state.timestamps = [];
-    rateLimitState.set(userId, state);
-    return { ok: false, retryAfter: 10 };
+  if (!isVerified) {
+    // Unverified users: 1 message per 30 seconds
+    state.timestamps = state.timestamps.filter((t) => now - t < 30);
+    if (state.timestamps.length >= 1) {
+      state.cooldownUntil = now + 30;
+      state.timestamps = [];
+      rateLimitState.set(userId, state);
+      return { ok: false, retryAfter: 30 };
+    }
+  } else {
+    // Verified users: 5 messages per 10 seconds
+    state.timestamps = state.timestamps.filter((t) => now - t < 10);
+    if (state.timestamps.length >= 5) {
+      state.cooldownUntil = now + 10;
+      state.timestamps = [];
+      rateLimitState.set(userId, state);
+      return { ok: false, retryAfter: 10 };
+    }
   }
 
   state.timestamps.push(now);
@@ -284,7 +303,7 @@ app.get('/api/rooms', (req, res) => {
 });
 
 // Get current user server-side flags
-app.get('/api/me', authMiddleware, (req, res) => {
+app.get('/api/me', authMiddleware, async (req, res) => {
   const meta = req.userMeta || {};
   const email = (req.decoded && req.decoded.email) || meta.email || '';
   console.log('[/api/me] Request from user:', req.userId);
@@ -293,6 +312,24 @@ app.get('/api/me', authMiddleware, (req, res) => {
   console.log('[/api/me] ensureLocalUser returned:', u);
   const full = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin, is_banned, banned_reason, has_seen_intro, created_at, last_seen FROM users WHERE id = ?').get(u.id);
   console.log('[/api/me] Full user from DB:', full);
+  
+  // Check email confirmation status from Supabase directly (JWT token doesn't update after confirmation)
+  let emailConfirmed = false;
+  if (supabase) {
+    try {
+      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(req.userId);
+      if (!userError && userData?.user?.email_confirmed_at) {
+        emailConfirmed = true;
+        console.log('[/api/me] Email confirmed in Supabase:', userData.user.email_confirmed_at);
+      } else {
+        console.log('[/api/me] Email NOT confirmed in Supabase');
+      }
+    } catch (err) {
+      console.error('[/api/me] Error checking email confirmation:', err);
+    }
+  }
+  console.log('[/api/me] Email confirmed status:', emailConfirmed);
+  
   const response = {
     id: full.id,
     email: full.email,
@@ -303,6 +340,7 @@ app.get('/api/me', authMiddleware, (req, res) => {
     isBanned: !!full.is_banned,
     bannedReason: full.banned_reason || null,
     hasSeenIntro: !!full.has_seen_intro,
+    emailConfirmed: emailConfirmed,
     createdAt: full.created_at,
     lastSeen: full.last_seen,
   };
@@ -343,6 +381,114 @@ app.put('/api/me/profile', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('[PUT /api/me/profile] Error:', err);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Update user email (for no-email users adding an email)
+app.post('/api/me/update-email', authMiddleware, async (req, res) => {
+  const { email } = req.body;
+  console.log('[update-email] Request received:', { userId: req.userId, email, hasSupabase: !!supabase });
+  
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    console.error('[update-email] Invalid email format:', email);
+    return res.status(400).json({ error: 'Valid email is required' });
+  }
+
+  try {
+    const newEmail = email.toLowerCase().trim();
+    console.log('[update-email] Processing email update for user:', req.userId, 'to:', newEmail);
+
+    // Update in Supabase via admin API - send confirmation email
+    if (!supabase) {
+      console.error('[update-email] Supabase client not initialized! Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars');
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
+
+    // Step 1: Generate email confirmation link using Supabase
+    // Use 'magiclink' type since the user already exists (changing email, not signing up)
+    console.log('[update-email] Step 1: Generating confirmation link...');
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: newEmail,
+      options: {
+        redirectTo: process.env.VITE_APP_URL || 'http://localhost:5173',
+      },
+    });
+    
+    if (linkError) {
+      console.error('[update-email] Failed to generate link:', JSON.stringify(linkError, null, 2));
+      return res.status(500).json({ error: 'Failed to generate confirmation link' });
+    }
+    
+    const confirmationUrl = linkData?.properties?.action_link;
+    if (!confirmationUrl) {
+      console.error('[update-email] No confirmation URL in response:', linkData);
+      return res.status(500).json({ error: 'Failed to generate confirmation URL' });
+    }
+    
+    console.log('[update-email] Confirmation URL generated successfully');
+    
+    // Step 2: Update email in Supabase (unconfirmed)
+    console.log('[update-email] Step 2: Updating email in Supabase...');
+    const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(req.userId, {
+      email: newEmail,
+      email_confirm: false, // Keep unconfirmed until they click the link
+    });
+    
+    if (updateError) {
+      console.error('[update-email] Failed to update email:', JSON.stringify(updateError, null, 2));
+      return res.status(500).json({ error: updateError.message || 'Failed to update email' });
+    }
+    
+    console.log('[update-email] Email updated in Supabase (unconfirmed)');
+    
+    // Step 3: Send confirmation email via Resend
+    if (!resend) {
+      console.error('[update-email] Resend not initialized! Check RESEND_API_KEY env var');
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
+    
+    console.log('[update-email] Step 3: Sending confirmation email via Resend...');
+    
+    // Read the email template
+    const fs = require('fs');
+    const path = require('path');
+    const templatePath = path.join(__dirname, 'email-templates', 'signup-confirmation.html');
+    let emailHtml = fs.readFileSync(templatePath, 'utf8');
+    
+    // Replace the confirmation URL placeholder
+    emailHtml = emailHtml.replace('{{ .ConfirmationURL }}', confirmationUrl);
+    
+    try {
+      const { data: emailData, error: emailError } = await resend.emails.send({
+        from: 'LancsChat <noreply@lancschat.lol>',
+        to: [newEmail],
+        subject: 'Confirm your LancsChat email',
+        html: emailHtml,
+      });
+      
+      if (emailError) {
+        console.error('[update-email] Resend error:', emailError);
+        return res.status(500).json({ error: 'Failed to send confirmation email' });
+      }
+      
+      console.log('[update-email] ✅ Confirmation email sent via Resend. Email ID:', emailData?.id);
+    } catch (emailErr) {
+      console.error('[update-email] Error sending email:', emailErr);
+      return res.status(500).json({ error: 'Failed to send confirmation email' });
+    }
+
+    // Update in local DB
+    console.log('[update-email] Updating local DB...');
+    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(newEmail, req.userId);
+    
+    console.log('[update-email] ✅ Email update complete. Confirmation email sent to:', newEmail);
+
+    res.json({ ok: true, email: newEmail, emailConfirmed: false });
+  } catch (err) {
+    console.error('[update-email] Unexpected error:', err);
+    console.error('[update-email] Error stack:', err instanceof Error ? err.stack : 'No stack trace');
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update email' });
   }
 });
 
@@ -409,6 +555,29 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('[DELETE /api/me/account] Error:', err);
     res.status(500).json({ error: 'Failed to delete account' });
+  }
+});
+
+// Auto-confirm a user (for no-email signups)
+app.post('/api/auth/confirm-user', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  if (!supabase) return res.status(500).json({ error: 'Supabase admin client not available' });
+
+  try {
+    console.log('[confirm-user] Confirming user:', userId);
+    const { data, error } = await supabase.auth.admin.updateUserById(userId, {
+      email_confirm: true,
+    });
+    if (error) {
+      console.error('[confirm-user] Error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+    console.log('[confirm-user] Success:', data.user?.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[confirm-user] Exception:', err);
+    res.status(500).json({ error: 'Failed to confirm user' });
   }
 });
 
@@ -1087,9 +1256,14 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const sendCheck = canSendMessage(socket.user.id);
+    const userRow = db.prepare('SELECT email FROM users WHERE id = ?').get(socket.user.id);
+    const isVerified = userRow && !userRow.email.includes('@noemail.lancschat.lol');
+    const sendCheck = canSendMessage(socket.user.id, isVerified);
     if (!sendCheck.ok) {
-      socket.emit('send_error', { code: 'RATE_LIMIT', message: "You're sending messages too fast, slow down", retryAfter: sendCheck.retryAfter });
+      const msg = isVerified
+        ? "You're sending messages too fast, slow down"
+        : "Verify your email in Settings to send messages faster";
+      socket.emit('send_error', { code: 'RATE_LIMIT', message: msg, retryAfter: sendCheck.retryAfter });
       return;
     }
 
@@ -1157,9 +1331,14 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const sendCheck = canSendMessage(socket.user.id);
+    const dmUserRow = db.prepare('SELECT email FROM users WHERE id = ?').get(socket.user.id);
+    const dmIsVerified = dmUserRow && !dmUserRow.email.includes('@noemail.lancschat.lol');
+    const sendCheck = canSendMessage(socket.user.id, dmIsVerified);
     if (!sendCheck.ok) {
-      socket.emit('send_error', { code: 'RATE_LIMIT', message: "You're sending messages too fast, slow down", retryAfter: sendCheck.retryAfter });
+      const msg = dmIsVerified
+        ? "You're sending messages too fast, slow down"
+        : "Verify your email in Settings to send messages faster";
+      socket.emit('send_error', { code: 'RATE_LIMIT', message: msg, retryAfter: sendCheck.retryAfter });
       return;
     }
 

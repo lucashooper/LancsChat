@@ -13,6 +13,7 @@ interface User {
   isBanned?: boolean;
   bannedReason?: string | null;
   hasSeenIntro?: boolean;
+  emailConfirmed?: boolean;
 }
 
 interface AuthContextType {
@@ -103,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isBanned: !!me.isBanned,
         bannedReason: me.bannedReason || null,
         hasSeenIntro: introSeen,
+        emailConfirmed: !!me.emailConfirmed,
       };
       console.log('[AuthContext] Setting final user:', finalUser);
       setUser(finalUser);

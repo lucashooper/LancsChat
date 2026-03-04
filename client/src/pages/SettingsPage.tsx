@@ -2,14 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { api } from '../api';
-import { User, MessageSquare, Loader2, Check, X, ChevronRight, Shield, Info, Camera, Trash2 } from 'lucide-react';
+import { User, MessageSquare, Loader2, Check, X, ChevronRight, Shield, Info, Camera, Trash2, ArrowLeft } from 'lucide-react';
 import './SettingsPage.css';
 
 type SettingsSection = 'menu' | 'profile' | 'feedback' | 'about' | 'appearance';
 
-export default function SettingsPage() {
+interface SettingsPageProps {
+  onClose?: () => void;
+}
+
+export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
   const { user, refreshUser, logout, token } = useAuth();
   const [section, setSection] = useState<SettingsSection>('profile');
+  const [mobileContentOpen, setMobileContentOpen] = useState(true);
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [feedback, setFeedback] = useState('');
   const [feedbackType, setFeedbackType] = useState<'bug_report' | 'feature_request' | 'other'>('feature_request');
@@ -57,9 +62,34 @@ export default function SettingsPage() {
     setSaving(true);
     setError('');
     try {
+      // Check if user wants to add an email
+      const emailInput = document.getElementById('addEmailInput') as HTMLInputElement | null;
+      const newEmail = emailInput?.value?.trim();
+
+      if (newEmail) {
+        console.log('[Settings] Adding email:', newEmail);
+        try {
+          // Update email in Supabase via server admin API
+          const response = await api('/me/update-email', {
+            method: 'POST',
+            token: token || '',
+            body: { email: newEmail },
+          });
+          console.log('[Settings] Email update response:', response);
+          
+          if (response.error) {
+            throw new Error(response.error);
+          }
+          
+          if (emailInput) emailInput.value = '';
+          console.log('[Settings] ✅ Email added successfully. Check your inbox for confirmation email.');
+        } catch (emailErr) {
+          console.error('[Settings] Email update failed:', emailErr);
+          throw new Error(`Failed to add email: ${emailErr instanceof Error ? emailErr.message : 'Unknown error'}`);
+        }
+      }
+
       console.log('[Settings] Updating display name to:', displayName.trim());
-      console.log('[Settings] Using token:', token ? 'Present' : 'Missing');
-      console.log('[Settings] API URL:', import.meta.env.VITE_API_URL || 'http://localhost:3001/api');
       
       // Call backend API to update profile
       const response = await api('/me/profile', {
@@ -72,7 +102,6 @@ export default function SettingsPage() {
       
       // Refresh user data from server
       await refreshUser();
-      console.log('[Settings] User refreshed, new user data:', user);
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -223,9 +252,20 @@ export default function SettingsPage() {
   return (
     <div className="settingsPage">
       <div className="settingsInner">
-        <h1 className="settingsTitle">Settings</h1>
+        <div className="settingsTitleRow">
+          {mobileContentOpen ? (
+            <button className="settingsBackBtn" onClick={() => setMobileContentOpen(false)}>
+              <ArrowLeft size={20} />
+            </button>
+          ) : (
+            <button className="settingsBackBtn settingsBackBtnMenu" onClick={onClose}>
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <h1 className="settingsTitle">Settings</h1>
+        </div>
 
-        <div className="settingsColumns">
+        <div className={`settingsColumns ${mobileContentOpen ? 'mobileContentOpen' : ''}`}>
 
           {/* Settings Sidebar / Menu */}
           <div className="settingsMenu">
@@ -233,7 +273,7 @@ export default function SettingsPage() {
               {menuItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => { setSection(item.id); setError(''); }}
+                  onClick={() => { setSection(item.id); setMobileContentOpen(true); setError(''); }}
                   className={`settingsMenuItem ${section === item.id ? 'isActive' : ''}`}
                 >
                   {item.icon}
@@ -296,7 +336,18 @@ export default function SettingsPage() {
 
                 <div className="profileMeta">
                   <p className="profileName">{displayName || user?.displayName}</p>
-                  <p className="profileEmail">{user?.email}</p>
+                  <div className="profileEmailRow">
+                    <p className="profileEmail">
+                      {user?.email?.includes('@noemail.lancschat.lol')
+                        ? 'No email added'
+                        : user?.email}
+                    </p>
+                    {user?.email && !user.email.includes('@noemail.lancschat.lol') && (
+                      <span className={`emailBadge ${user.emailConfirmed ? 'verified' : 'unverified'}`}>
+                        {user.emailConfirmed ? 'Verified' : 'Unverified'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -315,6 +366,26 @@ export default function SettingsPage() {
                     This is how others see you in chats. Your email is never shown to other users.
                   </p>
                 </div>
+
+                {(user?.email?.includes('@noemail.lancschat.lol') || !user?.emailConfirmed) && (
+                  <div className="fieldStack">
+                    <label className="fieldLabel">
+                      {user?.email?.includes('@noemail.lancschat.lol') ? 'Add email' : 'Resend verification email'}
+                    </label>
+                    <p className="helpText" style={{ marginTop: 0, marginBottom: 4 }}>
+                      {user?.email?.includes('@noemail.lancschat.lol')
+                        ? 'Adding an email unlocks password reset, faster messaging, and account recovery.'
+                        : 'Click Submit to resend the verification email. Check your inbox and spam folder.'}
+                    </p>
+                    <input
+                      type="email"
+                      className="textInput"
+                      placeholder="your@email.com"
+                      id="addEmailInput"
+                      defaultValue={user?.email?.includes('@noemail.lancschat.lol') ? '' : user?.email}
+                    />
+                  </div>
+                )}
 
                 {error && (
                   <div className="alert alertError">

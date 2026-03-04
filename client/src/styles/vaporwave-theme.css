@@ -846,3 +846,19 @@
   background: rgba(185, 103, 255, 0.25) !important;
   border-color: #ff71ce !important;
 }
+
+[data-theme="vaporwave"] .mobileBackBtn {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .mobileBackBtn:hover {
+  background: rgba(255, 113, 206, 0.15) !important;
+}
+
+[data-theme="vaporwave"] .settingsBackBtn {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .settingsBackBtn:hover {
+  color: #01cdfe !important;
+}
