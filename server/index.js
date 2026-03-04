@@ -411,7 +411,7 @@ app.post('/api/me/update-email', authMiddleware, async (req, res) => {
       type: 'magiclink',
       email: newEmail,
       options: {
-        redirectTo: process.env.VITE_APP_URL || 'http://localhost:5173',
+        redirectTo: process.env.CLIENT_URL || 'http://localhost:5174',
       },
     });
     
