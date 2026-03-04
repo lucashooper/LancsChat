@@ -1402,7 +1402,7 @@
 
 .onlinePanelHeader {
   padding: 0 16px;
-  min-height: 85px;
+  height: 85px;
   border-bottom: 1px solid #1a1a1a;
   display: flex;
   align-items: center;

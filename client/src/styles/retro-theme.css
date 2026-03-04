@@ -196,6 +196,7 @@
 [data-theme="retro"] .chatHeader {
   background: #d4a574 !important;
   border-bottom: 3px solid #6b4423 !important;
+  padding-bottom: 21px !important; /* Compensate for 3px border */
 }
 
 [data-theme="retro"] .chatHeaderTitle {
@@ -929,6 +930,7 @@
   background: #ffe4b5 !important;
   border-bottom: 2px solid #d4a574 !important;
   color: #6b4423 !important;
+  min-height: 83px !important; /* Compensate for 2px border */
 }
 
 [data-theme="retro"] .onlinePanelTitle {
