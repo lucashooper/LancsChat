@@ -192,15 +192,16 @@
   background: #efe0cd !important;
 }
 
-/* Hide the fixed border line since we have our own header border */
+/* Use single border line across entire top */
 [data-theme="retro"] .chatLayout::before {
-  display: none !important;
+  background: #6b4423 !important;
+  height: 3px !important;
 }
 
 /* Chat header */
 [data-theme="retro"] .chatHeader {
   background: #d4a574 !important;
-  border-bottom: 3px solid #6b4423 !important;
+  border-bottom: none !important;
 }
 
 [data-theme="retro"] .chatHeaderTitle {
@@ -932,9 +933,8 @@
 
 [data-theme="retro"] .onlinePanelHeader {
   background: #ffe4b5 !important;
-  border-bottom: 2px solid #d4a574 !important;
+  border-bottom: none !important;
   color: #6b4423 !important;
-  min-height: 83px !important; /* Compensate for 2px border */
 }
 
 [data-theme="retro"] .onlinePanelTitle {

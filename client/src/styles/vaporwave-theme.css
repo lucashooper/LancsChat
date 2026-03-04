@@ -189,10 +189,16 @@
   background: linear-gradient(180deg, #1a0033 0%, #0d001a 100%) !important;
 }
 
+/* Use single border line across entire top */
+[data-theme="vaporwave"] .chatLayout::before {
+  background: #b967ff !important;
+  height: 2px !important;
+}
+
 /* Chat header */
 [data-theme="vaporwave"] .chatHeader {
   background: rgba(15, 0, 26, 0.9) !important;
-  border-bottom: 2px solid #b967ff !important;
+  border-bottom: none !important;
 }
 
 [data-theme="vaporwave"] .chatHeaderTitle {
@@ -782,7 +788,7 @@
 
 [data-theme="vaporwave"] .onlinePanelHeader {
   background: rgba(61, 41, 99, 0.4) !important;
-  border-bottom: 1px solid #b967ff !important;
+  border-bottom: none !important;
   color: #ff71ce !important;
 }
 
