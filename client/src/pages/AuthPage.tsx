@@ -61,7 +61,8 @@ export default function AuthPage() {
         const userId = data?.user?.id;
         if (userId) {
           console.log('[Signup] Confirming user via server admin API...');
-          const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+          const serverUrl = apiUrl.replace('/api', ''); // Remove /api suffix if present
           const confirmRes = await fetch(`${serverUrl}/api/auth/confirm-user`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -104,7 +105,9 @@ export default function AuthPage() {
       
       // If input doesn't contain @, treat as username and fetch email from server
       if (!loginEmail.includes('@')) {
-        const response = await fetch(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'}/api/email-by-username?username=${encodeURIComponent(loginEmail)}`);
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+        const serverUrl = apiUrl.replace('/api', '');
+        const response = await fetch(`${serverUrl}/api/email-by-username?username=${encodeURIComponent(loginEmail)}`);
         if (!response.ok) {
           throw new Error('Username not found');
         }

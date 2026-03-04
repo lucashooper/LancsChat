@@ -27,7 +27,9 @@ function App() {
   const handleUnbanRequest = async () => {
     if (!unbanMessage.trim()) return;
     try {
-      await fetch(`${import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'}/api/unban-request`, {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const serverUrl = apiUrl.replace('/api', '');
+      await fetch(`${serverUrl}/api/unban-request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
