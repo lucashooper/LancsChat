@@ -22,8 +22,9 @@ export default function SettingsPage() {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(user?.avatarUrl || null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const themeKey = user?.id ? `lancschat-theme-${user.id}` : 'lancschat-theme';
   const [theme, setTheme] = useState<'modern' | 'retro' | 'vaporwave'>(
-    (localStorage.getItem('lancschat-theme') as 'modern' | 'retro' | 'vaporwave') || 'modern'
+    (localStorage.getItem(themeKey) as 'modern' | 'retro' | 'vaporwave') || 'modern'
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -43,7 +44,7 @@ export default function SettingsPage() {
   useEffect(() => {
     // Apply theme to document root
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('lancschat-theme', theme);
+    localStorage.setItem(themeKey, theme);
   }, [theme]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {

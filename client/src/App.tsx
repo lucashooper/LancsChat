@@ -13,11 +13,16 @@ function App() {
   const [unbanMessage, setUnbanMessage] = useState('');
   const [showUnbanForm, setShowUnbanForm] = useState(false);
 
-  // Initialize theme from localStorage on app load
+  // Initialize theme: account-specific, default to modern
   useEffect(() => {
-    const savedTheme = localStorage.getItem('lancschat-theme') || 'modern';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-  }, []);
+    if (user?.id) {
+      const savedTheme = localStorage.getItem(`lancschat-theme-${user.id}`) || 'modern';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    } else {
+      // No user logged in (auth page) — always use modern (no theme)
+      document.documentElement.setAttribute('data-theme', 'modern');
+    }
+  }, [user?.id]);
 
   const handleUnbanRequest = async () => {
     if (!unbanMessage.trim()) return;

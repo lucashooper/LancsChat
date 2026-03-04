@@ -5,7 +5,7 @@ import { useSocket } from '../context/SocketContext';
 import { api } from '../api';
 import {
   Hash, LogOut, Users,
-  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin
+  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin, Eye, EyeOff
 } from 'lucide-react';
 import SettingsPage from './SettingsPage';
 import { supabase } from '../lib/supabase';
@@ -107,6 +107,7 @@ export default function ChatPage() {
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
   const [showPinnedModal, setShowPinnedModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [showOnlinePanel, setShowOnlinePanel] = useState(true);
 
   const [reactionMap, setReactionMap] = useState<Record<string, ReactionSummary[]>>({});
   const visibleMessageIdsRef = useRef<Set<string>>(new Set());
@@ -1079,36 +1080,70 @@ export default function ChatPage() {
       </div>
 
       {/* ─── RIGHT SIDEBAR (online users) ─── */}
-      {chatOpen && onlineUsers.length > 0 && (
+      {chatOpen && onlineUsers.length > 0 && showOnlinePanel && (
         <div className="onlinePanel">
           <div className="onlinePanelHeader">
             <Users size={18} />
             <span className="onlinePanelTitle">Online ({onlineUsers.length})</span>
+            <button
+              className="onlineToggleBtn"
+              onClick={() => setShowOnlinePanel(false)}
+              title="Hide online users"
+            >
+              <EyeOff size={16} />
+            </button>
           </div>
           <div className="onlineList">
-            {onlineUsers
-              .filter(u => u.id !== user?.id)
-              .map((onlineUser) => (
-                <div key={onlineUser.id} className="onlineUserItem">
-                  {onlineUser.avatarUrl ? (
-                    <img
-                      src={onlineUser.avatarUrl}
-                      alt={onlineUser.displayName}
-                      className="onlineUserAvatar"
-                    />
-                  ) : (
-                    <div
-                      className="onlineUserAvatar"
-                      style={{ backgroundColor: onlineUser.avatarColor }}
+            {onlineUsers.map((onlineUser) => {
+              const isMe = onlineUser.id === user?.id;
+              return (
+                <div key={onlineUser.id} className={`onlineUserItem ${isMe ? 'isMe' : ''}`}>
+                  <div className="onlineAvatarWrap">
+                    {onlineUser.avatarUrl ? (
+                      <img
+                        src={onlineUser.avatarUrl}
+                        alt={onlineUser.displayName}
+                        className="onlineUserAvatar"
+                      />
+                    ) : (
+                      <div
+                        className="onlineUserAvatar"
+                        style={{ backgroundColor: onlineUser.avatarColor }}
+                      >
+                        {onlineUser.displayName.charAt(0)}
+                      </div>
+                    )}
+                    <div className="onlineDot" />
+                  </div>
+                  <span className="onlineUserName">
+                    {onlineUser.displayName}
+                    {isMe && <span className="onlineYouTag">(you)</span>}
+                  </span>
+                  {!isMe && (
+                    <button
+                      className="onlineDmBtn"
+                      title={`Message ${onlineUser.displayName}`}
+                      onClick={() => startDMWithUser(onlineUser.id)}
                     >
-                      {onlineUser.displayName.charAt(0)}
-                    </div>
+                      <MessageSquare size={14} />
+                    </button>
                   )}
-                  <span className="onlineUserName">{onlineUser.displayName}</span>
                 </div>
-              ))}
+              );
+            })}
           </div>
         </div>
+      )}
+
+      {/* Show online panel button when hidden */}
+      {chatOpen && onlineUsers.length > 0 && !showOnlinePanel && (
+        <button
+          className="showOnlineBtn"
+          onClick={() => setShowOnlinePanel(true)}
+          title="Show online users"
+        >
+          <Eye size={18} />
+        </button>
       )}
 
       {moreMenu && (() => {

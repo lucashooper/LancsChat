@@ -610,20 +610,25 @@
 }
 
 /* ─── HEADINGS ─── */
-[data-theme="retro"] h1,
-[data-theme="retro"] h2,
-[data-theme="retro"] h3 {
+[data-theme="retro"] .chatLayout h1,
+[data-theme="retro"] .chatLayout h2,
+[data-theme="retro"] .chatLayout h3,
+[data-theme="retro"] .settingsPage h1,
+[data-theme="retro"] .settingsPage h2,
+[data-theme="retro"] .settingsPage h3 {
   color: #6b4423 !important;
   text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.08);
 }
 
 /* ─── LINKS ─── */
-[data-theme="retro"] a {
+[data-theme="retro"] .chatLayout a,
+[data-theme="retro"] .settingsPage a {
   color: #6b4423 !important;
   text-decoration: underline !important;
 }
 
-[data-theme="retro"] a:hover {
+[data-theme="retro"] .chatLayout a:hover,
+[data-theme="retro"] .settingsPage a:hover {
   color: #2c1810 !important;
 }
 
@@ -649,21 +654,27 @@
 }
 
 /* ─── GENERIC BUTTONS ─── */
-[data-theme="retro"] button {
+[data-theme="retro"] .chatLayout button,
+[data-theme="retro"] .settingsPage button {
   font-family: 'Comic Sans MS', cursive !important;
 }
 
 /* ─── INPUT FIELDS ─── */
-[data-theme="retro"] input,
-[data-theme="retro"] textarea,
-[data-theme="retro"] select {
+[data-theme="retro"] .chatLayout input,
+[data-theme="retro"] .chatLayout textarea,
+[data-theme="retro"] .chatLayout select,
+[data-theme="retro"] .settingsPage input,
+[data-theme="retro"] .settingsPage textarea,
+[data-theme="retro"] .settingsPage select {
   background: #fff !important;
   border: 2px inset #a67c52 !important;
   color: #2c1810 !important;
 }
 
-[data-theme="retro"] input::placeholder,
-[data-theme="retro"] textarea::placeholder {
+[data-theme="retro"] .chatLayout input::placeholder,
+[data-theme="retro"] .chatLayout textarea::placeholder,
+[data-theme="retro"] .settingsPage input::placeholder,
+[data-theme="retro"] .settingsPage textarea::placeholder {
   color: #8b7355 !important;
 }
 
@@ -938,6 +949,43 @@
   border: 2px solid #a67c52 !important;
 }
 
+[data-theme="retro"] .onlineDot {
+  border-color: #efe0cd !important;
+}
+
 [data-theme="retro"] .onlineUserName {
   color: #2c1810 !important;
+}
+
+[data-theme="retro"] .onlineYouTag {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .onlineDmBtn {
+  color: #a67c52 !important;
+}
+
+[data-theme="retro"] .onlineDmBtn:hover {
+  color: #6b4423 !important;
+  background: rgba(107, 68, 35, 0.1) !important;
+}
+
+[data-theme="retro"] .onlineToggleBtn {
+  color: #a67c52 !important;
+}
+
+[data-theme="retro"] .onlineToggleBtn:hover {
+  color: #6b4423 !important;
+  background: rgba(107, 68, 35, 0.1) !important;
+}
+
+[data-theme="retro"] .showOnlineBtn {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .showOnlineBtn:hover {
+  background: #ffd89b !important;
+  border-color: #a67c52 !important;
 }

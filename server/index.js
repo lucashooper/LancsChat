@@ -911,16 +911,26 @@ io.on('connection', (socket) => {
 
   // Join a room
   socket.on('join_room', (roomId) => {
+    // Verify room exists before joining
+    const room = db.prepare('SELECT id FROM rooms WHERE id = ?').get(roomId);
+    if (!room) {
+      console.log(`⚠️ ${socket.user.display_name} tried to join non-existent room: ${roomId}`);
+      return;
+    }
     socket.join(`room:${roomId}`);
     console.log(`${socket.user.display_name} joined room: ${roomId}`);
     
     // Mark room as read
-    const now = Math.floor(Date.now() / 1000);
-    db.prepare(`
-      INSERT INTO room_last_read (user_id, room_id, last_read_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id, room_id) DO UPDATE SET last_read_at = ?
-    `).run(socket.user.id, roomId, now, now);
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      db.prepare(`
+        INSERT INTO room_last_read (user_id, room_id, last_read_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(user_id, room_id) DO UPDATE SET last_read_at = ?
+      `).run(socket.user.id, roomId, now, now);
+    } catch (err) {
+      console.error(`Failed to update room_last_read for room ${roomId}:`, err.message);
+    }
   });
 
   socket.on('toggle_reaction', (data) => {

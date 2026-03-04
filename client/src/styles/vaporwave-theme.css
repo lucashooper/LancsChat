@@ -536,9 +536,12 @@
 }
 
 /* ─── HEADINGS ─── */
-[data-theme="vaporwave"] h1,
-[data-theme="vaporwave"] h2,
-[data-theme="vaporwave"] h3 {
+[data-theme="vaporwave"] .chatLayout h1,
+[data-theme="vaporwave"] .chatLayout h2,
+[data-theme="vaporwave"] .chatLayout h3,
+[data-theme="vaporwave"] .settingsPage h1,
+[data-theme="vaporwave"] .settingsPage h2,
+[data-theme="vaporwave"] .settingsPage h3 {
   color: #ff71ce !important;
   text-shadow: 0 0 10px rgba(255, 113, 206, 0.5);
   text-transform: uppercase !important;
@@ -546,11 +549,13 @@
 }
 
 /* ─── LINKS ─── */
-[data-theme="vaporwave"] a {
+[data-theme="vaporwave"] .chatLayout a,
+[data-theme="vaporwave"] .settingsPage a {
   color: #01cdfe !important;
 }
 
-[data-theme="vaporwave"] a:hover {
+[data-theme="vaporwave"] .chatLayout a:hover,
+[data-theme="vaporwave"] .settingsPage a:hover {
   color: #ff71ce !important;
 }
 
@@ -571,21 +576,27 @@
 }
 
 /* ─── GENERIC BUTTONS ─── */
-[data-theme="vaporwave"] button {
+[data-theme="vaporwave"] .chatLayout button,
+[data-theme="vaporwave"] .settingsPage button {
   font-family: 'Courier New', monospace !important;
 }
 
 /* ─── INPUT FIELDS ─── */
-[data-theme="vaporwave"] input,
-[data-theme="vaporwave"] textarea,
-[data-theme="vaporwave"] select {
+[data-theme="vaporwave"] .chatLayout input,
+[data-theme="vaporwave"] .chatLayout textarea,
+[data-theme="vaporwave"] .chatLayout select,
+[data-theme="vaporwave"] .settingsPage input,
+[data-theme="vaporwave"] .settingsPage textarea,
+[data-theme="vaporwave"] .settingsPage select {
   background: rgba(15, 0, 26, 0.8) !important;
   border: 1px solid #b967ff !important;
   color: #01cdfe !important;
 }
 
-[data-theme="vaporwave"] input::placeholder,
-[data-theme="vaporwave"] textarea::placeholder {
+[data-theme="vaporwave"] .chatLayout input::placeholder,
+[data-theme="vaporwave"] .chatLayout textarea::placeholder,
+[data-theme="vaporwave"] .settingsPage input::placeholder,
+[data-theme="vaporwave"] .settingsPage textarea::placeholder {
   color: rgba(185, 103, 255, 0.5) !important;
 }
 
@@ -795,6 +806,43 @@
   box-shadow: 0 0 8px rgba(185, 103, 255, 0.3);
 }
 
+[data-theme="vaporwave"] .onlineDot {
+  border-color: #1a0033 !important;
+}
+
 [data-theme="vaporwave"] .onlineUserName {
   color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .onlineYouTag {
+  color: rgba(1, 205, 254, 0.4) !important;
+}
+
+[data-theme="vaporwave"] .onlineDmBtn {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .onlineDmBtn:hover {
+  color: #ff71ce !important;
+  background: rgba(255, 113, 206, 0.15) !important;
+}
+
+[data-theme="vaporwave"] .onlineToggleBtn {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .onlineToggleBtn:hover {
+  color: #ff71ce !important;
+  background: rgba(255, 113, 206, 0.15) !important;
+}
+
+[data-theme="vaporwave"] .showOnlineBtn {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border: 1px solid #b967ff !important;
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .showOnlineBtn:hover {
+  background: rgba(185, 103, 255, 0.25) !important;
+  border-color: #ff71ce !important;
 }

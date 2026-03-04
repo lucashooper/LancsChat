@@ -3,7 +3,7 @@
   height: 100vh;
   display: flex;
   gap: 32px;
-  padding: 0 32px;
+  padding: 0 0 0 32px;
   background: #000;
 }
 
@@ -1360,12 +1360,14 @@
 
 /* ─── ONLINE USERS SIDEBAR ─── */
 .onlinePanel {
-  width: 240px;
+  width: 260px;
   background: #0a0a0a;
   border-left: 1px solid #1a1a1a;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  height: 100vh;
+  position: relative;
 }
 
 .onlinePanelHeader {
@@ -1375,6 +1377,7 @@
   align-items: center;
   gap: 10px;
   color: rgba(255, 255, 255, 0.6);
+  position: relative;
 }
 
 .onlinePanelTitle {
@@ -1406,6 +1409,11 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.onlineAvatarWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .onlineUserAvatar {
   width: 32px;
   height: 32px;
@@ -1420,6 +1428,17 @@
   object-fit: cover;
 }
 
+.onlineDot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background: #22c55e;
+  border-radius: 999px;
+  border: 2px solid #0a0a0a;
+}
+
 .onlineUserName {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.8);
@@ -1427,4 +1446,84 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.onlineYouTag {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.onlineDmBtn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.onlineUserItem:hover .onlineDmBtn {
+  opacity: 1;
+}
+
+.onlineDmBtn:hover {
+  color: #0095f6;
+  background: rgba(0, 149, 246, 0.1);
+}
+
+.onlineUserItem.isMe {
+  opacity: 0.7;
+}
+
+.onlineToggleBtn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.onlineToggleBtn:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.showOnlineBtn {
+  position: fixed;
+  right: 80px;
+  top: 20px;
+  background: #262626;
+  border: none;
+  color: #fafafa;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  z-index: 100;
+}
+
+.showOnlineBtn:hover {
+  background: #3a3a3a;
 }
