@@ -862,9 +862,17 @@ app.post('/api/admin/unban-requests/:requestId/deny', authMiddleware, requireAdm
   res.json({ ok: true });
 });
 
-// Get online users count
+// Track online users: Map<userId, { id, displayName, avatarColor, avatarUrl }>
+const onlineUsers = new Map();
+
+function broadcastOnlineUsers() {
+  const users = Array.from(onlineUsers.values());
+  io.emit('online_users', users);
+}
+
+// Get online users
 app.get('/api/online', (req, res) => {
-  res.json({ count: io.engine.clientsCount });
+  res.json({ count: onlineUsers.size, users: Array.from(onlineUsers.values()) });
 });
 
 // Socket.IO authentication middleware
@@ -891,6 +899,15 @@ io.on('connection', (socket) => {
 
   // Update last seen
   db.prepare('UPDATE users SET last_seen = unixepoch() WHERE id = ?').run(socket.user.id);
+
+  // Track online user
+  onlineUsers.set(socket.user.id, {
+    id: socket.user.id,
+    displayName: socket.user.display_name,
+    avatarColor: socket.user.avatar_color,
+    avatarUrl: socket.user.avatar_url || null,
+  });
+  broadcastOnlineUsers();
 
   // Join a room
   socket.on('join_room', (roomId) => {
@@ -1240,6 +1257,20 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`❌ ${socket.user.display_name} disconnected`);
     db.prepare('UPDATE users SET last_seen = unixepoch() WHERE id = ?').run(socket.user.id);
+    
+    // Check if user has any other active sockets before removing from online list
+    const sockets = io.sockets.sockets;
+    let stillOnline = false;
+    for (const [, s] of sockets) {
+      if (s.user && s.user.id === socket.user.id && s.id !== socket.id) {
+        stillOnline = true;
+        break;
+      }
+    }
+    if (!stillOnline) {
+      onlineUsers.delete(socket.user.id);
+      broadcastOnlineUsers();
+    }
   });
 });
 

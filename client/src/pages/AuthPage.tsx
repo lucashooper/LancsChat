@@ -21,11 +21,7 @@ export default function AuthPage() {
     e.preventDefault();
     setError('');
 
-    const domain = email.split('@')[1]?.toLowerCase();
-    if (domain !== ALLOWED_DOMAIN) {
-      setError('Only @lancaster.ac.uk email addresses are allowed');
-      return;
-    }
+    // Email domain restriction removed - open to all emails
     if (!displayName.trim()) {
       setError('Please choose a display name');
       return;

@@ -5,14 +5,14 @@ import { api } from '../api';
 import { User, MessageSquare, Loader2, Check, X, ChevronRight, Shield, Info, Camera, Trash2 } from 'lucide-react';
 import './SettingsPage.css';
 
-type SettingsSection = 'menu' | 'profile' | 'feedback' | 'about';
+type SettingsSection = 'menu' | 'profile' | 'feedback' | 'about' | 'appearance';
 
 export default function SettingsPage() {
   const { user, refreshUser, logout, token } = useAuth();
   const [section, setSection] = useState<SettingsSection>('profile');
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [feedback, setFeedback] = useState('');
-  const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'other'>('feature');
+  const [feedbackType, setFeedbackType] = useState<'bug_report' | 'feature_request' | 'other'>('feature_request');
   const [saving, setSaving] = useState(false);
   const [sendingFeedback, setSendingFeedback] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -22,6 +22,9 @@ export default function SettingsPage() {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(user?.avatarUrl || null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [theme, setTheme] = useState<'modern' | 'retro' | 'vaporwave'>(
+    (localStorage.getItem('lancschat-theme') as 'modern' | 'retro' | 'vaporwave') || 'modern'
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -36,6 +39,12 @@ export default function SettingsPage() {
       }
     };
   }, [avatarPreviewUrl]);
+
+  useEffect(() => {
+    // Apply theme to document root
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('lancschat-theme', theme);
+  }, [theme]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,15 +189,16 @@ export default function SettingsPage() {
         .from('feedback')
         .insert({
           user_id: user?.id,
-          display_name: user?.displayName,
-          type: feedbackType,
-          content: feedback.trim(),
-          created_at: new Date().toISOString(),
+          user_email: user?.email,
+          user_display_name: user?.displayName,
+          feedback_type: feedbackType,
+          feedback_text: feedback.trim(),
         });
 
       if (insertError) {
-        console.log('Feedback:', { type: feedbackType, content: feedback, user: user?.displayName });
-        console.warn('Feedback table not set up yet:', insertError);
+        console.error('Failed to submit feedback:', insertError);
+        setError('Failed to submit feedback. Please try again.');
+        return;
       }
 
       setFeedback('');
@@ -203,6 +213,7 @@ export default function SettingsPage() {
 
   const menuItems = [
     { id: 'profile' as const, label: 'Edit profile', desc: 'Display name, avatar', icon: <User className="settingsMenuIcon" /> },
+    { id: 'appearance' as const, label: 'Appearance', desc: 'Modern or Retro theme', icon: <Info className="settingsMenuIcon" /> },
     { id: 'feedback' as const, label: 'Send feedback', desc: 'Bug reports, feature requests', icon: <MessageSquare className="settingsMenuIcon" /> },
     { id: 'about' as const, label: 'About & Privacy', desc: 'How LancsChat works', icon: <Shield className="settingsMenuIcon" /> },
   ];
@@ -390,6 +401,107 @@ export default function SettingsPage() {
             </>
           )}
 
+          {/* Appearance */}
+          {section === 'appearance' && (
+            <>
+              <h2 className="settingsSectionTitle">Appearance</h2>
+
+              <div className="formStack">
+                <div className="fieldStack">
+                  <label className="fieldLabel">
+                    Choose your theme
+                  </label>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                    {/* Modern Theme */}
+                    <button
+                      type="button"
+                      onClick={() => setTheme('modern')}
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        border: theme === 'modern' ? '2px solid #0095f6' : '2px solid rgba(255,255,255,0.15)',
+                        background: theme === 'modern' ? 'rgba(0,149,246,0.1)' : 'rgba(255,255,255,0.03)',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                      }}
+                    >
+                      <span style={{ fontSize: '20px', lineHeight: 1 }}>✨</span>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '15px', fontWeight: 600 }}>Modern</span>
+                        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>Clean & minimal</span>
+                      </div>
+                      {theme === 'modern' && (
+                        <span style={{ color: '#0095f6', fontSize: '13px', fontWeight: 600 }}>✓</span>
+                      )}
+                    </button>
+
+                    {/* Retro Theme */}
+                    <button
+                      type="button"
+                      onClick={() => setTheme('retro')}
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        border: theme === 'retro' ? '2px solid #a67c52' : '2px solid rgba(255,255,255,0.15)',
+                        background: theme === 'retro' ? 'rgba(166,124,82,0.15)' : 'rgba(255,255,255,0.03)',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                      }}
+                    >
+                      <span style={{ fontSize: '20px', lineHeight: 1 }}>🎮</span>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '15px', fontWeight: 600 }}>Retro</span>
+                        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>Early 2000s vibes</span>
+                      </div>
+                      {theme === 'retro' && (
+                        <span style={{ color: '#a67c52', fontSize: '13px', fontWeight: 600 }}>✓</span>
+                      )}
+                    </button>
+
+                    {/* Vaporwave Theme */}
+                    <button
+                      type="button"
+                      onClick={() => setTheme('vaporwave')}
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        border: theme === 'vaporwave' ? '2px solid #ff71ce' : '2px solid rgba(255,255,255,0.15)',
+                        background: theme === 'vaporwave' ? 'rgba(255,113,206,0.1)' : 'rgba(255,255,255,0.03)',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                      }}
+                    >
+                      <span style={{ fontSize: '20px', lineHeight: 1 }}>🌆</span>
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontSize: '15px', fontWeight: 600 }}>Vaporwave</span>
+                        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>Synthwave neon</span>
+                      </div>
+                      {theme === 'vaporwave' && (
+                        <span style={{ color: '#ff71ce', fontSize: '13px', fontWeight: 600 }}>✓</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Feedback */}
           {section === 'feedback' && (
             <>
@@ -402,8 +514,8 @@ export default function SettingsPage() {
                   </label>
                   <div className="chipRow">
                     {[
-                      { value: 'feature', label: 'Feature request' },
-                      { value: 'bug', label: 'Bug report' },
+                      { value: 'feature_request', label: 'Feature request' },
+                      { value: 'bug_report', label: 'Bug report' },
                       { value: 'other', label: 'Other' },
                     ].map((type) => (
                       <button

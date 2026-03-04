@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
+import { supabase } from '../lib/supabase';
 import './AdminPage.css';
 
 type AdminTab = 'stats' | 'users' | 'reports' | 'deleted' | 'feedback' | 'unban-requests' | 'settings';
@@ -55,11 +56,13 @@ type DeletedMessageRow = {
 
 type FeedbackRow = {
   id: string;
-  userId: string;
-  displayName: string;
-  type: string;
-  content: string;
-  createdAt: string;
+  user_id: string;
+  user_email: string;
+  user_display_name: string;
+  feedback_type: string;
+  feedback_text: string;
+  created_at: string;
+  status: string;
 };
 
 type UnbanRequestRow = {
@@ -119,8 +122,15 @@ export default function AdminPage() {
         const rows = await api('/admin/deleted-messages', { token });
         setDeleted(rows);
       } else if (tab === 'feedback') {
-        const rows = await api('/admin/feedback', { token });
-        setFeedback(rows);
+        const { data, error: fetchError } = await supabase
+          .from('feedback')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (fetchError) {
+          throw new Error('Failed to fetch feedback: ' + fetchError.message);
+        }
+        setFeedback(data || []);
       } else if (tab === 'unban-requests') {
         const rows = await api('/admin/unban-requests', { token });
         setUnbanRequests(rows);
@@ -375,13 +385,13 @@ export default function AdminPage() {
                       <div key={f.id} className="adminReport">
                         <div className="adminReportTop">
                           <div className="adminReportTitle">
-                            {f.type === 'bug' ? '🐛 Bug Report' : f.type === 'feature' ? '✨ Feature Request' : '💬 Feedback'}
+                            {f.feedback_type === 'bug_report' ? '🐛 Bug Report' : f.feedback_type === 'feature_request' ? '✨ Feature Request' : '💬 Other'}
                           </div>
-                          <div className="adminMuted adminSmall">{new Date(f.createdAt).toLocaleString()}</div>
+                          <div className="adminMuted adminSmall">{new Date(f.created_at).toLocaleString()}</div>
                         </div>
-                        <div className="adminMuted adminSmall">From: {f.displayName}</div>
+                        <div className="adminMuted adminSmall">From: {f.user_display_name} ({f.user_email}) - Status: {f.status}</div>
                         <div className="adminReportMsg">
-                          <div className="adminMono">{f.content}</div>
+                          <div className="adminMono">{f.feedback_text}</div>
                         </div>
                       </div>
                     ))}
@@ -519,9 +529,9 @@ export default function AdminPage() {
                     {savingSettings ? 'Saving...' : 'Save Settings'}
                   </button>
 
-                  <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(255,193,7,0.1)', borderRadius: '12px', border: '1px solid rgba(255,193,7,0.2)' }}>
+                  <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(34,197,94,0.1)', borderRadius: '12px', border: '1px solid rgba(34,197,94,0.2)' }}>
                     <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
-                      <strong>⚠️ Note:</strong> This is a UI-only toggle for now. To actually change email restrictions, you need to modify the <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>ALLOWED_DOMAIN</code> check in <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>client/src/pages/AuthPage.tsx</code>. Comment out lines 24-28 to allow any email for testing.
+                      <strong>✓ Email Restriction Removed:</strong> LancsChat now accepts all email addresses. The posters on campus will naturally attract Lancaster students, while keeping the platform accessible to everyone.
                     </div>
                   </div>
                 </div>

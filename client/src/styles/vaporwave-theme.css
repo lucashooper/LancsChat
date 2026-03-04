@@ -1,0 +1,800 @@
+/* 🌆 Vaporwave Theme - 80s/90s Synthwave Aesthetic
+   Targets actual class names from ChatPage.css & SettingsPage */
+
+/* ─── GLOBAL FONT & COLOR ─── */
+/* Only apply vaporwave styles when chat or settings pages are present, NOT on auth */
+[data-theme="vaporwave"] body:has(.chatLayout),
+[data-theme="vaporwave"] body:has(.settingsPage) {
+  font-family: 'Courier New', 'Consolas', monospace !important;
+  color: #ff71ce !important;
+  background: #1a0033 !important;
+}
+
+[data-theme="vaporwave"] body:has(.chatLayout) #root,
+[data-theme="vaporwave"] body:has(.settingsPage) #root {
+  font-family: 'Courier New', 'Consolas', monospace !important;
+  color: #ff71ce !important;
+  background: #1a0033 !important;
+}
+
+[data-theme="vaporwave"] .chatLayout *,
+[data-theme="vaporwave"] .settingsPage * {
+  font-family: inherit !important;
+}
+
+/* Avatars must stay circular */
+[data-theme="vaporwave"] .avatarButton,
+[data-theme="vaporwave"] .avatarImg,
+[data-theme="vaporwave"] .sidebarUserAvatarImg,
+[data-theme="vaporwave"] .sidebarUserAvatarFallback,
+[data-theme="vaporwave"] .msgAvatarBtn,
+[data-theme="vaporwave"] .dmAvatar,
+[data-theme="vaporwave"] .dmAvatarImg,
+[data-theme="vaporwave"] .modalUserAvatar,
+[data-theme="vaporwave"] .pinnedAvatar {
+  border-radius: 999px !important;
+  border-color: #b967ff !important;
+}
+
+/* ─── LAYOUT ─── */
+[data-theme="vaporwave"] .chatLayout {
+  background: linear-gradient(180deg, #1a0033 0%, #0d001a 50%, #1a0033 100%) !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+/* ─── SIDEBAR ─── */
+[data-theme="vaporwave"] .sidebar {
+  background: linear-gradient(180deg, #2d1b4e 0%, #1a0033 100%) !important;
+  border-right: 2px solid #b967ff !important;
+}
+
+[data-theme="vaporwave"] .sidebarLogoText {
+  color: #ff71ce !important;
+  text-shadow: 0 0 8px rgba(255, 113, 206, 0.5);
+}
+
+[data-theme="vaporwave"] .sidebarNavItem {
+  background: rgba(61, 41, 99, 0.5) !important;
+  border: 1px solid #b967ff !important;
+  border-radius: 8px !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .sidebarNavItem:hover {
+  background: rgba(185, 103, 255, 0.3) !important;
+  color: #ff71ce !important;
+  box-shadow: 0 0 10px rgba(255, 113, 206, 0.3);
+}
+
+[data-theme="vaporwave"] .sidebarNavItem.isActive {
+  background: linear-gradient(135deg, #ff71ce, #01cdfe, #b967ff) !important;
+  border: 1px solid #ff71ce !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 15px rgba(255, 113, 206, 0.5);
+}
+
+[data-theme="vaporwave"] .sidebarNavLabel {
+  color: inherit !important;
+}
+
+[data-theme="vaporwave"] .sidebarNavItem svg,
+[data-theme="vaporwave"] .lcIconNav,
+[data-theme="vaporwave"] .lcIconLogout {
+  color: inherit !important;
+}
+
+[data-theme="vaporwave"] .sidebarUserName {
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .sidebarUserAvatarFallback {
+  color: #fff !important;
+  box-shadow: 0 0 8px rgba(255, 113, 206, 0.4);
+}
+
+/* ─── MIDDLE PANEL ─── */
+[data-theme="vaporwave"] .middlePanel {
+  background: linear-gradient(180deg, #2d1b4e 0%, #1a0033 100%) !important;
+  border-right: 2px solid #b967ff !important;
+}
+
+[data-theme="vaporwave"] .panelHeader {
+  background: transparent !important;
+}
+
+[data-theme="vaporwave"] .panelTitle {
+  color: #ff71ce !important;
+  text-shadow: 0 0 10px rgba(255, 113, 206, 0.5);
+  text-transform: uppercase !important;
+  letter-spacing: 2px !important;
+}
+
+[data-theme="vaporwave"] .panelSubtle {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .panelList {
+  background: transparent !important;
+}
+
+/* List items */
+[data-theme="vaporwave"] .listItem {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border: 1px solid rgba(185, 103, 255, 0.3) !important;
+  border-radius: 10px !important;
+  margin-bottom: 6px !important;
+}
+
+[data-theme="vaporwave"] .listItem:hover {
+  background: rgba(185, 103, 255, 0.25) !important;
+  border-color: #01cdfe !important;
+  box-shadow: 0 0 10px rgba(1, 205, 254, 0.3);
+}
+
+[data-theme="vaporwave"] .listItem.isActive {
+  background: linear-gradient(135deg, rgba(255, 113, 206, 0.3), rgba(1, 205, 254, 0.3)) !important;
+  border-color: #ff71ce !important;
+  box-shadow: 0 0 12px rgba(255, 113, 206, 0.4);
+}
+
+[data-theme="vaporwave"] .listItem.hasUnread {
+  background: rgba(185, 103, 255, 0.35) !important;
+  border-color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .listItemTitle {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .listItem.isActive .listItemTitle {
+  color: #fff !important;
+}
+
+[data-theme="vaporwave"] .listItemDesc {
+  color: rgba(1, 205, 254, 0.7) !important;
+}
+
+[data-theme="vaporwave"] .lastMsgSender {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .unreadDot {
+  background: #05ffa1 !important;
+  box-shadow: 0 0 6px #05ffa1;
+}
+
+[data-theme="vaporwave"] .newDMBtn {
+  background: linear-gradient(135deg, #ff71ce, #b967ff) !important;
+  color: #fff !important;
+  box-shadow: 0 0 10px rgba(255, 113, 206, 0.4);
+}
+
+/* Empty list */
+[data-theme="vaporwave"] .emptyListTitle {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .emptyListDesc {
+  color: rgba(185, 103, 255, 0.5) !important;
+}
+
+[data-theme="vaporwave"] .lcIconEmpty {
+  color: #b967ff !important;
+}
+
+/* ─── MAIN PANEL ─── */
+[data-theme="vaporwave"] .mainPanel {
+  background: linear-gradient(180deg, #1a0033 0%, #0d001a 100%) !important;
+}
+
+/* Chat header */
+[data-theme="vaporwave"] .chatHeader {
+  background: rgba(15, 0, 26, 0.9) !important;
+  border-bottom: 2px solid #b967ff !important;
+}
+
+[data-theme="vaporwave"] .chatHeaderTitle {
+  color: #ff71ce !important;
+  text-shadow: 0 0 8px rgba(255, 113, 206, 0.5);
+}
+
+[data-theme="vaporwave"] .pinnedBtn {
+  background: rgba(61, 41, 99, 0.6) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .pinnedBtn:hover {
+  background: rgba(185, 103, 255, 0.4) !important;
+  box-shadow: 0 0 8px rgba(185, 103, 255, 0.4);
+}
+
+[data-theme="vaporwave"] .pinnedCount {
+  background: #ff71ce !important;
+  color: #fff !important;
+}
+
+/* ─── MESSAGES AREA ─── */
+[data-theme="vaporwave"] .messages {
+  background: transparent !important;
+}
+
+[data-theme="vaporwave"] .msgName {
+  color: #ff71ce !important;
+  text-shadow: 0 0 5px rgba(255, 113, 206, 0.3);
+}
+
+[data-theme="vaporwave"] .msgTime {
+  color: #b967ff !important;
+}
+
+/* Message bubbles */
+[data-theme="vaporwave"] .msgBubble.isOwn {
+  background: linear-gradient(135deg, #ff71ce, #b967ff) !important;
+  color: #fff !important;
+  border: 1px solid #ff71ce !important;
+  box-shadow: 0 0 10px rgba(255, 113, 206, 0.3);
+}
+
+[data-theme="vaporwave"] .msgBubble.isOther {
+  background: rgba(61, 41, 99, 0.6) !important;
+  color: #01cdfe !important;
+  border: 1px solid rgba(185, 103, 255, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .msgContent {
+  color: inherit !important;
+}
+
+[data-theme="vaporwave"] .msgDeleted {
+  color: #b967ff !important;
+}
+
+/* Reply quotes */
+[data-theme="vaporwave"] .replyQuote {
+  border-left-color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .replyQuoteName {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .replyQuoteText {
+  color: #b967ff !important;
+}
+
+/* Message action buttons */
+[data-theme="vaporwave"] .msgActions {
+  background: rgba(29, 0, 51, 0.95) !important;
+  border: 1px solid #b967ff !important;
+  box-shadow: 0 0 10px rgba(185, 103, 255, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .msgActionBtn {
+  color: #01cdfe !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+[data-theme="vaporwave"] .msgActionBtn:hover {
+  background: rgba(185, 103, 255, 0.3) !important;
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .msgActionIcon {
+  color: inherit !important;
+}
+
+/* Avatar buttons */
+[data-theme="vaporwave"] .msgAvatarBtn {
+  border: 2px solid #b967ff !important;
+  box-shadow: 0 0 6px rgba(185, 103, 255, 0.3);
+  color: #fff !important;
+}
+
+/* Reactions */
+[data-theme="vaporwave"] .reactionChip {
+  background: rgba(61, 41, 99, 0.5) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .reactionChip:hover {
+  background: rgba(185, 103, 255, 0.4) !important;
+  box-shadow: 0 0 6px rgba(185, 103, 255, 0.3);
+}
+
+[data-theme="vaporwave"] .reactionChip.isMine {
+  border-color: #ff71ce !important;
+  background: rgba(255, 113, 206, 0.2) !important;
+}
+
+[data-theme="vaporwave"] .reactionCount {
+  color: #01cdfe !important;
+}
+
+/* ─── INPUT BAR ─── */
+[data-theme="vaporwave"] .inputBarWrap {
+  background: transparent !important;
+}
+
+[data-theme="vaporwave"] .inputBar {
+  background: rgba(15, 0, 26, 0.8) !important;
+  border: 2px solid #01cdfe !important;
+  border-radius: 10px !important;
+  box-shadow: 0 0 8px rgba(1, 205, 254, 0.2);
+}
+
+[data-theme="vaporwave"] .inputBar:focus-within {
+  border-color: #ff71ce !important;
+  box-shadow: 0 0 12px rgba(255, 113, 206, 0.3);
+}
+
+[data-theme="vaporwave"] .inputField {
+  color: #01cdfe !important;
+  background: transparent !important;
+}
+
+[data-theme="vaporwave"] .inputField::placeholder {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .emojiBtn {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .emojiBtn:hover {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .sendBtn {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .sendBtn:hover {
+  color: #01cdfe !important;
+  background: rgba(185, 103, 255, 0.2) !important;
+}
+
+/* Composer */
+[data-theme="vaporwave"] .replyPreview {
+  background: rgba(61, 41, 99, 0.5) !important;
+  border: 1px solid #b967ff !important;
+}
+
+[data-theme="vaporwave"] .replyPreviewText {
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .replyCancel {
+  background: rgba(255, 113, 206, 0.2) !important;
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .sendWarning {
+  background: rgba(255, 251, 150, 0.1) !important;
+  border-color: #fffb96 !important;
+  color: #fffb96 !important;
+}
+
+/* ─── WELCOME / EMPTY STATE ─── */
+[data-theme="vaporwave"] .welcome {
+  background: transparent !important;
+}
+
+[data-theme="vaporwave"] .welcomeIcon {
+  border-color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .welcomeTitle {
+  color: #ff71ce !important;
+  text-shadow: 0 0 10px rgba(255, 113, 206, 0.4);
+}
+
+[data-theme="vaporwave"] .welcomeDesc {
+  color: #b967ff !important;
+}
+
+/* ─── EMOJI PICKER ─── */
+[data-theme="vaporwave"] .emojiPicker {
+  background: rgba(29, 0, 51, 0.95) !important;
+  border: 2px solid #b967ff !important;
+  box-shadow: 0 0 15px rgba(185, 103, 255, 0.4);
+}
+
+/* ─── MORE MENU ─── */
+[data-theme="vaporwave"] .moreMenu {
+  background: rgba(29, 0, 51, 0.95) !important;
+  border: 2px solid #b967ff !important;
+  box-shadow: 0 0 15px rgba(185, 103, 255, 0.4) !important;
+}
+
+[data-theme="vaporwave"] .moreItem {
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .moreItem:hover {
+  background: rgba(185, 103, 255, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .moreItem.danger {
+  color: #ff71ce !important;
+}
+
+/* ─── MODALS ─── */
+[data-theme="vaporwave"] .modalOverlay {
+  background: rgba(15, 0, 26, 0.7) !important;
+}
+
+[data-theme="vaporwave"] .modalCard {
+  background: rgba(29, 0, 51, 0.95) !important;
+  border: 2px solid #b967ff !important;
+  box-shadow: 0 0 25px rgba(185, 103, 255, 0.4) !important;
+}
+
+[data-theme="vaporwave"] .modalTitle {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .modalDesc {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .modalBtn {
+  background: rgba(61, 41, 99, 0.5) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .modalBtn:hover {
+  background: rgba(185, 103, 255, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .modalBtn.primary {
+  background: linear-gradient(135deg, #ff71ce, #b967ff) !important;
+  color: #fff !important;
+}
+
+[data-theme="vaporwave"] .modalSelect {
+  background: rgba(15, 0, 26, 0.8) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .modalSearchInput {
+  background: rgba(15, 0, 26, 0.8) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .modalMuted {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .modalUserName {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .modalUserItem:hover {
+  background: rgba(185, 103, 255, 0.2) !important;
+}
+
+/* Long-press menu */
+[data-theme="vaporwave"] .msgMenu {
+  background: rgba(29, 0, 51, 0.95) !important;
+  border: 2px solid #b967ff !important;
+}
+
+[data-theme="vaporwave"] .msgMenuReactions {
+  background: rgba(61, 41, 99, 0.4) !important;
+}
+
+[data-theme="vaporwave"] .msgMenuItem {
+  background: rgba(61, 41, 99, 0.3) !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .msgMenuItem:hover {
+  background: rgba(185, 103, 255, 0.3) !important;
+}
+
+/* Pinned messages */
+[data-theme="vaporwave"] .pinnedItem {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border: 1px solid rgba(185, 103, 255, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .pinnedItemName {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .pinnedItemTime {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .pinnedItemContent {
+  color: #01cdfe !important;
+}
+
+/* DM */
+[data-theme="vaporwave"] .dmAvatar {
+  background: rgba(61, 41, 99, 0.6) !important;
+  color: #ff71ce !important;
+  box-shadow: 0 0 6px rgba(255, 113, 206, 0.3);
+}
+
+/* ─── SETTINGS ─── */
+[data-theme="vaporwave"] .settingsSectionTitle {
+  color: #ff71ce !important;
+  text-shadow: 0 0 8px rgba(255, 113, 206, 0.4);
+}
+
+[data-theme="vaporwave"] .fieldLabel {
+  color: #01cdfe !important;
+}
+
+/* ─── HEADINGS ─── */
+[data-theme="vaporwave"] h1,
+[data-theme="vaporwave"] h2,
+[data-theme="vaporwave"] h3 {
+  color: #ff71ce !important;
+  text-shadow: 0 0 10px rgba(255, 113, 206, 0.5);
+  text-transform: uppercase !important;
+  letter-spacing: 2px !important;
+}
+
+/* ─── LINKS ─── */
+[data-theme="vaporwave"] a {
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] a:hover {
+  color: #ff71ce !important;
+}
+
+/* ─── SCROLLBAR ─── */
+[data-theme="vaporwave"] ::-webkit-scrollbar {
+  width: 12px;
+  background: #0d001a;
+}
+
+[data-theme="vaporwave"] ::-webkit-scrollbar-track {
+  background: #1a0033;
+}
+
+[data-theme="vaporwave"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #ff71ce, #b967ff);
+  border-radius: 6px;
+  border: 1px solid #b967ff;
+}
+
+/* ─── GENERIC BUTTONS ─── */
+[data-theme="vaporwave"] button {
+  font-family: 'Courier New', monospace !important;
+}
+
+/* ─── INPUT FIELDS ─── */
+[data-theme="vaporwave"] input,
+[data-theme="vaporwave"] textarea,
+[data-theme="vaporwave"] select {
+  background: rgba(15, 0, 26, 0.8) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] input::placeholder,
+[data-theme="vaporwave"] textarea::placeholder {
+  color: rgba(185, 103, 255, 0.5) !important;
+}
+
+/* ─── SETTINGS PAGE ─── */
+[data-theme="vaporwave"] .settingsPage {
+  background: transparent !important;
+}
+
+[data-theme="vaporwave"] .settingsTitle {
+  color: #ff71ce !important;
+  text-shadow: 0 0 10px rgba(255, 113, 206, 0.5);
+}
+
+[data-theme="vaporwave"] .settingsMenuItem {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border: 1px solid rgba(185, 103, 255, 0.3) !important;
+  border-radius: 10px !important;
+}
+
+[data-theme="vaporwave"] .settingsMenuItem:hover {
+  background: rgba(185, 103, 255, 0.25) !important;
+}
+
+[data-theme="vaporwave"] .settingsMenuItem.isActive {
+  background: linear-gradient(135deg, rgba(255, 113, 206, 0.2), rgba(1, 205, 254, 0.2)) !important;
+  border-color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .settingsMenuLabel {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .settingsMenuItem.isActive .settingsMenuLabel {
+  color: #fff !important;
+}
+
+[data-theme="vaporwave"] .settingsMenuDesc {
+  color: rgba(1, 205, 254, 0.6) !important;
+}
+
+[data-theme="vaporwave"] .settingsMenuIcon {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .settingsMenuItem.isActive .settingsMenuIcon {
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .settingsChevron {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .profileCard {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border: 1px solid rgba(185, 103, 255, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .profileName {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .profileEmail {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .textInput {
+  background: rgba(15, 0, 26, 0.8) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .textInput:focus {
+  border-color: #ff71ce !important;
+  box-shadow: 0 0 8px rgba(255, 113, 206, 0.3);
+}
+
+[data-theme="vaporwave"] .helpText {
+  color: rgba(185, 103, 255, 0.5) !important;
+}
+
+[data-theme="vaporwave"] .primaryButton {
+  background: linear-gradient(135deg, #ff71ce, #b967ff) !important;
+  color: #fff !important;
+  border: 1px solid #ff71ce !important;
+  box-shadow: 0 0 10px rgba(255, 113, 206, 0.3);
+}
+
+[data-theme="vaporwave"] .primaryButton:hover {
+  box-shadow: 0 0 18px rgba(255, 113, 206, 0.5);
+}
+
+[data-theme="vaporwave"] .chipButton {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .chipButton.isActive {
+  background: linear-gradient(135deg, #ff71ce, #b967ff) !important;
+  border-color: #ff71ce !important;
+  color: #fff !important;
+}
+
+[data-theme="vaporwave"] .textArea {
+  background: rgba(15, 0, 26, 0.8) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .textArea::placeholder {
+  color: rgba(185, 103, 255, 0.4) !important;
+}
+
+[data-theme="vaporwave"] .aboutAppName {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .aboutVersion {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .aboutText {
+  color: rgba(1, 205, 254, 0.7) !important;
+}
+
+[data-theme="vaporwave"] .aboutBlockTitle {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .aboutListText {
+  color: rgba(1, 205, 254, 0.7) !important;
+}
+
+[data-theme="vaporwave"] .aboutInfoIcon {
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .dangerZone {
+  background: rgba(255, 113, 206, 0.05) !important;
+  border-color: rgba(255, 113, 206, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .dangerZoneTitle {
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .dangerZoneDesc {
+  color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .dangerButton {
+  background: rgba(255, 113, 206, 0.1) !important;
+  border-color: rgba(255, 113, 206, 0.4) !important;
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .secondaryButton {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border: 1px solid #b967ff !important;
+  color: #01cdfe !important;
+}
+
+[data-theme="vaporwave"] .modalContent {
+  background: rgba(29, 0, 51, 0.95) !important;
+  border: 2px solid #b967ff !important;
+}
+
+/* ─── NEON PULSE ANIMATION ─── */
+@keyframes neon-pulse {
+  0%, 100% { text-shadow: 0 0 5px rgba(255, 113, 206, 0.5); }
+  50% { text-shadow: 0 0 15px rgba(255, 113, 206, 0.8), 0 0 25px rgba(255, 113, 206, 0.4); }
+}
+
+[data-theme="vaporwave"] .panelTitle {
+  animation: neon-pulse 3s ease-in-out infinite;
+}
+
+/* ─── ONLINE USERS SIDEBAR ─── */
+[data-theme="vaporwave"] .onlinePanel {
+  background: linear-gradient(180deg, rgba(29, 0, 51, 0.95), rgba(15, 0, 26, 0.95)) !important;
+  border-left: 1px solid #b967ff !important;
+}
+
+[data-theme="vaporwave"] .onlinePanelHeader {
+  background: rgba(61, 41, 99, 0.4) !important;
+  border-bottom: 1px solid #b967ff !important;
+  color: #ff71ce !important;
+}
+
+[data-theme="vaporwave"] .onlinePanelTitle {
+  color: #ff71ce !important;
+  text-shadow: 0 0 8px rgba(255, 113, 206, 0.4);
+}
+
+[data-theme="vaporwave"] .onlineUserItem {
+  background: rgba(61, 41, 99, 0.3) !important;
+  border: 1px solid rgba(185, 103, 255, 0.3) !important;
+}
+
+[data-theme="vaporwave"] .onlineUserItem:hover {
+  background: rgba(185, 103, 255, 0.25) !important;
+  border-color: #b967ff !important;
+}
+
+[data-theme="vaporwave"] .onlineUserAvatar {
+  border: 1px solid #b967ff !important;
+  box-shadow: 0 0 8px rgba(185, 103, 255, 0.3);
+}
+
+[data-theme="vaporwave"] .onlineUserName {
+  color: #01cdfe !important;
+}

@@ -1,0 +1,943 @@
+/* 🎨 Retro Theme - Early 2000s Internet Aesthetic
+   Targets actual class names from ChatPage.css & SettingsPage */
+
+/* ─── GLOBAL FONT & COLOR OVERRIDE ─── */
+/* Only apply retro styles when chat or settings pages are present, NOT on auth */
+[data-theme="retro"] body:has(.chatLayout),
+[data-theme="retro"] body:has(.settingsPage) {
+  font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif !important;
+  color: #2c1810 !important;
+  background: #f5e6d3 !important;
+}
+
+[data-theme="retro"] body:has(.chatLayout) #root,
+[data-theme="retro"] body:has(.settingsPage) #root {
+  font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif !important;
+  color: #2c1810 !important;
+  background: #f5e6d3 !important;
+}
+
+[data-theme="retro"] .chatLayout *,
+[data-theme="retro"] .settingsPage * {
+  font-family: inherit !important;
+}
+
+/* Avatars must stay circular */
+[data-theme="retro"] .avatarButton,
+[data-theme="retro"] .avatarImg,
+[data-theme="retro"] .sidebarUserAvatarImg,
+[data-theme="retro"] .sidebarUserAvatarFallback,
+[data-theme="retro"] .msgAvatarBtn,
+[data-theme="retro"] .dmAvatar,
+[data-theme="retro"] .dmAvatarImg,
+[data-theme="retro"] .modalUserAvatar,
+[data-theme="retro"] .pinnedAvatar {
+  border-radius: 999px !important;
+  border-color: #a67c52 !important;
+}
+
+/* ─── LAYOUT (chatLayout is the root flex container with bg: #000) ─── */
+[data-theme="retro"] .chatLayout {
+  background: #efe0cd !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+/* ─── SIDEBAR ─── */
+[data-theme="retro"] .sidebar {
+  background: #f5e6d3 !important;
+  border-right: 3px solid #6b4423 !important;
+}
+
+[data-theme="retro"] .sidebarLogoText {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .sidebarNavItem {
+  background: #ffe4b5 !important;
+  border: 2px outset #a67c52 !important;
+  border-radius: 6px !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .sidebarNavItem:hover {
+  background: #ffd89b !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .sidebarNavItem.isActive {
+  background: #d4a574 !important;
+  border: 2px inset #6b4423 !important;
+  color: #2c1810 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="retro"] .sidebarNavLabel {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .sidebarNavItem svg,
+[data-theme="retro"] .lcIconNav,
+[data-theme="retro"] .lcIconLogout {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .sidebarUserName {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .sidebarUserAvatarFallback {
+  color: #fff !important;
+}
+
+/* ─── MIDDLE PANEL (room/DM list) ─── */
+[data-theme="retro"] .middlePanel {
+  background: #f5e6d3 !important;
+  border-right: 3px solid #6b4423 !important;
+}
+
+[data-theme="retro"] .panelHeader {
+  background: #f5e6d3 !important;
+}
+
+[data-theme="retro"] .panelTitle {
+  color: #6b4423 !important;
+  font-weight: 800 !important;
+}
+
+[data-theme="retro"] .panelSubtle {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .panelList {
+  background: #f5e6d3 !important;
+}
+
+/* List items (rooms, DMs) */
+[data-theme="retro"] .listItem {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+  border-radius: 8px !important;
+  margin-bottom: 6px !important;
+}
+
+[data-theme="retro"] .listItem:hover {
+  background: #ffd89b !important;
+  border-color: #a67c52 !important;
+}
+
+[data-theme="retro"] .listItem.isActive {
+  background: #d4a574 !important;
+  border-color: #6b4423 !important;
+}
+
+[data-theme="retro"] .listItem.hasUnread {
+  background: #ffd89b !important;
+  border-color: #a67c52 !important;
+}
+
+[data-theme="retro"] .listItemTitle {
+  color: #2c1810 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="retro"] .listItem.isActive .listItemTitle {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .listItemDesc {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .lastMsgSender {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .roomIcon {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .unreadDot {
+  background: #6b4423 !important;
+}
+
+[data-theme="retro"] .newDMBtn {
+  background: #a67c52 !important;
+  color: #fff !important;
+}
+
+[data-theme="retro"] .newDMBtn:hover {
+  background: #6b4423 !important;
+}
+
+/* Empty list */
+[data-theme="retro"] .emptyList {
+  background: transparent !important;
+}
+
+[data-theme="retro"] .emptyListTitle {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .emptyListDesc {
+  color: #a67c52 !important;
+}
+
+[data-theme="retro"] .lcIconEmpty {
+  color: #a67c52 !important;
+}
+
+/* ─── MAIN PANEL (chat area) ─── */
+[data-theme="retro"] .mainPanel {
+  background: #efe0cd !important;
+}
+
+/* Chat header */
+[data-theme="retro"] .chatHeader {
+  background: #d4a574 !important;
+  border-bottom: 3px solid #6b4423 !important;
+}
+
+[data-theme="retro"] .chatHeaderTitle {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .pinnedBtn {
+  background: #ffe4b5 !important;
+  border: 2px outset #a67c52 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .pinnedBtn:hover {
+  background: #ffd89b !important;
+}
+
+[data-theme="retro"] .pinnedCount {
+  background: #6b4423 !important;
+  color: #fff !important;
+}
+
+/* ─── MESSAGES AREA ─── */
+[data-theme="retro"] .messages {
+  background: #efe0cd !important;
+}
+
+[data-theme="retro"] .msgList {
+  background: transparent !important;
+}
+
+/* Message metadata */
+[data-theme="retro"] .msgName {
+  color: #6b4423 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="retro"] .msgTime {
+  color: #8b7355 !important;
+}
+
+/* Message bubbles */
+[data-theme="retro"] .msgBubble.isOwn {
+  background: #a67c52 !important;
+  color: #fff !important;
+  border: 2px solid #6b4423 !important;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="retro"] .msgBubble.isOther {
+  background: #ffe4b5 !important;
+  color: #2c1810 !important;
+  border: 2px solid #d4a574 !important;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="retro"] .msgContent {
+  color: inherit !important;
+}
+
+[data-theme="retro"] .msgDeleted {
+  color: #8b7355 !important;
+}
+
+/* Reply quotes */
+[data-theme="retro"] .replyQuote {
+  border-left-color: #a67c52 !important;
+}
+
+[data-theme="retro"] .replyQuoteName {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .replyQuoteText {
+  color: #5d4e37 !important;
+}
+
+/* Message action buttons (reply, react, more) */
+[data-theme="retro"] .msgActions {
+  background: #ffe4b5 !important;
+  border: 2px solid #a67c52 !important;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-theme="retro"] .msgActionBtn {
+  color: #2c1810 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+[data-theme="retro"] .msgActionBtn:hover {
+  background: #ffd89b !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .msgActionIcon {
+  color: #5d4e37 !important;
+}
+
+/* Avatar buttons in messages */
+[data-theme="retro"] .msgAvatarBtn {
+  border: 2px solid #a67c52 !important;
+  border-radius: 6px !important;
+  color: #fff !important;
+}
+
+/* Reactions */
+[data-theme="retro"] .reactionChip {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .reactionChip:hover {
+  background: #ffd89b !important;
+  border-color: #a67c52 !important;
+}
+
+[data-theme="retro"] .reactionChip.isMine {
+  background: #d4a574 !important;
+  border-color: #6b4423 !important;
+}
+
+[data-theme="retro"] .reactionCount {
+  color: #2c1810 !important;
+}
+
+/* ─── INPUT BAR ─── */
+[data-theme="retro"] .inputBarWrap {
+  background: #efe0cd !important;
+}
+
+[data-theme="retro"] .inputBar {
+  background: #fff !important;
+  border: 3px inset #a67c52 !important;
+  border-radius: 6px !important;
+}
+
+[data-theme="retro"] .inputField {
+  color: #2c1810 !important;
+  background: transparent !important;
+}
+
+[data-theme="retro"] .inputField::placeholder {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .emojiBtn {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .emojiBtn:hover {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .sendBtn {
+  color: #6b4423 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="retro"] .sendBtn:hover {
+  color: #2c1810 !important;
+  background: #ffe4b5 !important;
+}
+
+/* Composer info (reply preview, warnings) */
+[data-theme="retro"] .replyPreview {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+}
+
+[data-theme="retro"] .replyPreviewText {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .replyCancel {
+  background: #d4a574 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .sendWarning {
+  background: #ffe4b5 !important;
+  border-color: #a67c52 !important;
+  color: #6b4423 !important;
+}
+
+/* ─── WELCOME / EMPTY STATE ─── */
+[data-theme="retro"] .welcome {
+  background: #efe0cd !important;
+}
+
+[data-theme="retro"] .welcomeIcon {
+  border-color: #a67c52 !important;
+}
+
+[data-theme="retro"] .welcomeTitle {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .welcomeDesc {
+  color: #8b7355 !important;
+}
+
+/* ─── EMOJI PICKER ─── */
+[data-theme="retro"] .emojiPicker {
+  background: #ffe4b5 !important;
+  border: 3px solid #6b4423 !important;
+}
+
+[data-theme="retro"] .emojiPick {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .emojiPick:hover {
+  background: #ffd89b !important;
+}
+
+[data-theme="retro"] .emojiPickPlus {
+  color: #5d4e37 !important;
+}
+
+/* ─── MORE MENU / CONTEXT MENU ─── */
+[data-theme="retro"] .moreMenu {
+  background: #ffe4b5 !important;
+  border: 3px solid #6b4423 !important;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme="retro"] .moreItem {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .moreItem:hover {
+  background: #ffd89b !important;
+}
+
+[data-theme="retro"] .moreItem.danger {
+  color: #cc0000 !important;
+}
+
+/* ─── MODALS ─── */
+[data-theme="retro"] .modalOverlay {
+  background: rgba(107, 68, 35, 0.5) !important;
+}
+
+[data-theme="retro"] .modalCard {
+  background: #ffe4b5 !important;
+  border: 4px solid #6b4423 !important;
+  box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme="retro"] .modalTitle {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .modalDesc {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .modalBtn {
+  background: #ffe4b5 !important;
+  border: 2px outset #a67c52 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .modalBtn:hover {
+  background: #ffd89b !important;
+}
+
+[data-theme="retro"] .modalBtn.primary {
+  background: #a67c52 !important;
+  color: #fff !important;
+}
+
+[data-theme="retro"] .modalBtn.primary:hover {
+  background: #6b4423 !important;
+}
+
+[data-theme="retro"] .modalSelect {
+  background: #fff !important;
+  border: 2px inset #a67c52 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .modalCloseBtn {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .modalCloseBtn:hover {
+  background: #ffd89b !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .modalSearchInput {
+  background: #fff !important;
+  border: 2px inset #a67c52 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .modalSearchInput:focus {
+  border-color: #6b4423 !important;
+}
+
+[data-theme="retro"] .modalMuted {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .modalUserItem {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .modalUserItem:hover {
+  background: #ffd89b !important;
+}
+
+[data-theme="retro"] .modalUserName {
+  color: #2c1810 !important;
+}
+
+/* Mobile long-press menu */
+[data-theme="retro"] .msgMenu {
+  background: #ffe4b5 !important;
+  border: 3px solid #6b4423 !important;
+  box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.3) !important;
+}
+
+[data-theme="retro"] .msgMenuReactions {
+  background: #f5e6d3 !important;
+  border-color: #d4a574 !important;
+}
+
+[data-theme="retro"] .msgMenuReact:hover {
+  background: #ffd89b !important;
+}
+
+[data-theme="retro"] .msgMenuItem {
+  background: #ffe4b5 !important;
+  border-color: #d4a574 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .msgMenuItem:hover {
+  background: #ffd89b !important;
+}
+
+/* Pinned messages modal */
+[data-theme="retro"] .pinnedItem {
+  background: #f5e6d3 !important;
+  border: 2px solid #d4a574 !important;
+}
+
+[data-theme="retro"] .pinnedItem:hover {
+  background: #ffe4b5 !important;
+}
+
+[data-theme="retro"] .pinnedItemName {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .pinnedItemTime {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .pinnedItemContent {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .pinnedItemUnpin {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .pinnedItemUnpin:hover {
+  background: #d4a574 !important;
+  color: #2c1810 !important;
+}
+
+/* DM conversation row */
+[data-theme="retro"] .dmAvatar {
+  background: #a67c52 !important;
+  color: #fff !important;
+}
+
+[data-theme="retro"] .dmDeleteBtn {
+  background: rgba(204, 0, 0, 0.15) !important;
+  color: #cc0000 !important;
+}
+
+[data-theme="retro"] .dmDeleteBtn:hover {
+  background: rgba(204, 0, 0, 0.3) !important;
+}
+
+/* ─── SETTINGS PAGE ─── */
+[data-theme="retro"] .settingsPage,
+[data-theme="retro"] .settingsLayout {
+  background: #f5e6d3 !important;
+}
+
+[data-theme="retro"] .settingsSectionTitle {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .settingsMenuIcon {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .fieldLabel {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .profileCard {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+}
+
+/* ─── HEADINGS ─── */
+[data-theme="retro"] h1,
+[data-theme="retro"] h2,
+[data-theme="retro"] h3 {
+  color: #6b4423 !important;
+  text-shadow: 1px 1px 0px rgba(0, 0, 0, 0.08);
+}
+
+/* ─── LINKS ─── */
+[data-theme="retro"] a {
+  color: #6b4423 !important;
+  text-decoration: underline !important;
+}
+
+[data-theme="retro"] a:hover {
+  color: #2c1810 !important;
+}
+
+/* ─── SCROLLBAR ─── */
+[data-theme="retro"] ::-webkit-scrollbar {
+  width: 14px;
+  background: #f5e6d3;
+}
+
+[data-theme="retro"] ::-webkit-scrollbar-track {
+  background: #efe0cd;
+  border: 2px inset #d4a574;
+}
+
+[data-theme="retro"] ::-webkit-scrollbar-thumb {
+  background: #d4a574;
+  border: 2px outset #a67c52;
+  border-radius: 4px;
+}
+
+[data-theme="retro"] ::-webkit-scrollbar-thumb:hover {
+  background: #a67c52;
+}
+
+/* ─── GENERIC BUTTONS ─── */
+[data-theme="retro"] button {
+  font-family: 'Comic Sans MS', cursive !important;
+}
+
+/* ─── INPUT FIELDS ─── */
+[data-theme="retro"] input,
+[data-theme="retro"] textarea,
+[data-theme="retro"] select {
+  background: #fff !important;
+  border: 2px inset #a67c52 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] input::placeholder,
+[data-theme="retro"] textarea::placeholder {
+  color: #8b7355 !important;
+}
+
+/* ─── SETTINGS PAGE (all classes from SettingsPage.css) ─── */
+[data-theme="retro"] .settingsPage {
+  background: #f5e6d3 !important;
+}
+
+[data-theme="retro"] .settingsTitle {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .settingsMenuItem {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+  border-radius: 10px !important;
+}
+
+[data-theme="retro"] .settingsMenuItem:hover {
+  background: #ffd89b !important;
+}
+
+[data-theme="retro"] .settingsMenuItem.isActive {
+  background: #d4a574 !important;
+  border-color: #6b4423 !important;
+}
+
+[data-theme="retro"] .settingsMenuLabel {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .settingsMenuItem.isActive .settingsMenuLabel {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .settingsMenuDesc {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .settingsMenuIcon {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .settingsMenuItem.isActive .settingsMenuIcon {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .settingsChevron {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .settingsSectionTitle {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .profileCard {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+  border-radius: 12px !important;
+}
+
+[data-theme="retro"] .profileName {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .profileEmail {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .fieldLabel {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .textInput {
+  background: #fff !important;
+  border: 2px inset #a67c52 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .textInput:focus {
+  border-color: #6b4423 !important;
+}
+
+[data-theme="retro"] .helpText {
+  color: #8b7355 !important;
+}
+
+/* Theme selection buttons inline styles override */
+[data-theme="retro"] .fieldStack button {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .fieldStack button span {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .fieldStack button div span:first-child {
+  color: #2c1810 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="retro"] .fieldStack button div span:last-child {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .primaryButton {
+  background: #a67c52 !important;
+  color: #fff !important;
+  border: 2px outset #6b4423 !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="retro"] .primaryButton:hover {
+  background: #6b4423 !important;
+}
+
+[data-theme="retro"] .chipButton {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .chipButton:hover {
+  border-color: #a67c52 !important;
+}
+
+[data-theme="retro"] .chipButton.isActive {
+  background: #a67c52 !important;
+  border-color: #6b4423 !important;
+  color: #fff !important;
+}
+
+[data-theme="retro"] .textArea {
+  background: #fff !important;
+  border: 2px inset #a67c52 !important;
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .textArea::placeholder {
+  color: #8b7355 !important;
+}
+
+[data-theme="retro"] .alertError {
+  background: rgba(204, 0, 0, 0.1) !important;
+  border-color: #cc0000 !important;
+  color: #cc0000 !important;
+}
+
+[data-theme="retro"] .alertSuccess {
+  background: rgba(0, 128, 0, 0.1) !important;
+  border-color: #006600 !important;
+  color: #006600 !important;
+}
+
+/* About section */
+[data-theme="retro"] .aboutAppName {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .aboutVersion {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .aboutText {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .aboutBlockTitle {
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .aboutListText {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .aboutInfoIcon {
+  color: #a67c52 !important;
+}
+
+/* Danger zone */
+[data-theme="retro"] .dangerZone {
+  background: rgba(204, 0, 0, 0.05) !important;
+  border-color: rgba(204, 0, 0, 0.3) !important;
+}
+
+[data-theme="retro"] .dangerZoneTitle {
+  color: #cc0000 !important;
+}
+
+[data-theme="retro"] .dangerZoneDesc {
+  color: #5d4e37 !important;
+}
+
+[data-theme="retro"] .dangerButton {
+  background: rgba(204, 0, 0, 0.1) !important;
+  border-color: rgba(204, 0, 0, 0.4) !important;
+  color: #cc0000 !important;
+}
+
+[data-theme="retro"] .secondaryButton {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+  color: #2c1810 !important;
+}
+
+/* Settings modal */
+[data-theme="retro"] .modalContent {
+  background: #ffe4b5 !important;
+  border: 3px solid #6b4423 !important;
+}
+
+[data-theme="retro"] .modalTitle {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .modalDesc {
+  color: #5d4e37 !important;
+}
+
+/* ─── RETRO COFFEE GIF ─── */
+/* Show on chatLayout (rooms list, messages list) and settings, but hide on auth pages */
+/* Hide when the input bar is visible (user is in an active conversation) */
+[data-theme="retro"] body:has(.chatLayout)::after,
+[data-theme="retro"] body:has(.settingsPage)::after {
+  content: '';
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 100px;
+  height: 100px;
+  background-image: url('/retro-coffee.gif');
+  background-size: contain;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.85;
+  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Hide coffee GIF when user is in an active chat (inputBar visible) */
+[data-theme="retro"] body:has(.inputBarWrap)::after {
+  display: none !important;
+}
+
+/* ─── ONLINE USERS SIDEBAR ─── */
+[data-theme="retro"] .onlinePanel {
+  background: #efe0cd !important;
+  border-left: 2px solid #d4a574 !important;
+}
+
+[data-theme="retro"] .onlinePanelHeader {
+  background: #ffe4b5 !important;
+  border-bottom: 2px solid #d4a574 !important;
+  color: #6b4423 !important;
+}
+
+[data-theme="retro"] .onlinePanelTitle {
+  color: #2c1810 !important;
+}
+
+[data-theme="retro"] .onlineUserItem {
+  background: #ffe4b5 !important;
+  border: 2px solid #d4a574 !important;
+}
+
+[data-theme="retro"] .onlineUserItem:hover {
+  background: #ffd89b !important;
+  border-color: #a67c52 !important;
+}
+
+[data-theme="retro"] .onlineUserAvatar {
+  border: 2px solid #a67c52 !important;
+}
+
+[data-theme="retro"] .onlineUserName {
+  color: #2c1810 !important;
+}

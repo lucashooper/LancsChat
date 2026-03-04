@@ -1,5 +1,5 @@
 import { useAuth } from './context/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { SocketProvider } from './context/SocketContext';
 import AuthPage from './pages/AuthPage';
@@ -12,6 +12,12 @@ function App() {
   const [unbanRequested, setUnbanRequested] = useState(false);
   const [unbanMessage, setUnbanMessage] = useState('');
   const [showUnbanForm, setShowUnbanForm] = useState(false);
+
+  // Initialize theme from localStorage on app load
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('lancschat-theme') || 'modern';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }, []);
 
   const handleUnbanRequest = async () => {
     if (!unbanMessage.trim()) return;

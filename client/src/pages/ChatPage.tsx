@@ -63,6 +63,13 @@ interface DMConversation {
   has_unread?: boolean;
 }
 
+interface OnlineUser {
+  id: string;
+  displayName: string;
+  avatarColor: string;
+  avatarUrl: string | null;
+}
+
 type NavTab = 'rooms' | 'dms' | 'settings';
 
 export default function ChatPage() {
@@ -99,6 +106,7 @@ export default function ChatPage() {
   const [dmContextMenu, setDmContextMenu] = useState<{ conversationId: string; x: number; y: number } | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
   const [showPinnedModal, setShowPinnedModal] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
   const [reactionMap, setReactionMap] = useState<Record<string, ReactionSummary[]>>({});
   const visibleMessageIdsRef = useRef<Set<string>>(new Set());
@@ -259,11 +267,16 @@ export default function ChatPage() {
       }
     };
 
+    const handleOnlineUsers = (users: OnlineUser[]) => {
+      setOnlineUsers(users);
+    };
+
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('send_error', handleSendError);
     socket.on('room_updated', handleRoomUpdated);
     socket.on('message_pinned', handleMessagePinned);
     socket.on('message_unpinned', handleMessageUnpinned);
+    socket.on('online_users', handleOnlineUsers);
 
     return () => {
       socket.off('new_message', handleNewMessage);
@@ -274,6 +287,7 @@ export default function ChatPage() {
       socket.off('room_updated', handleRoomUpdated);
       socket.off('message_pinned', handleMessagePinned);
       socket.off('message_unpinned', handleMessageUnpinned);
+      socket.off('online_users', handleOnlineUsers);
     };
   }, [socket, selectedRoom, selectedDM, scrollToBottom]);
 
@@ -778,11 +792,13 @@ export default function ChatPage() {
                       className={`listItem ${selectedDM?.other_id === convo.other_id && chatOpen ? 'isActive' : ''} ${convo.has_unread ? 'hasUnread' : ''}`}
                     >
                       {convo.other_avatar_url ? (
-                        <img
-                          src={convo.other_avatar_url}
-                          alt={convo.other_name}
-                          className="dmAvatar dmAvatarImg"
-                        />
+                        <div className="dmAvatar" style={{ overflow: 'hidden' }}>
+                          <img
+                            src={convo.other_avatar_url}
+                            alt={convo.other_name}
+                            className="dmAvatarImg"
+                          />
+                        </div>
                       ) : (
                         <div
                           className="dmAvatar"
@@ -907,7 +923,7 @@ export default function ChatPage() {
                         <div className={`msgMeta ${isOwn ? 'isOwn' : ''}`}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <span className="msgName">{msg.display_name}</span>
-                            {msg.is_admin && <span style={{ fontSize: '10px', fontWeight: '600', color: '#0095f6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin</span>}
+                            {!!msg.is_admin && <span style={{ fontSize: '10px', fontWeight: '600', color: '#0095f6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin</span>}
                           </div>
                           <span className="msgTime">{formatTime(msg.created_at)}</span>
                         </div>
@@ -1061,6 +1077,39 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {/* ─── RIGHT SIDEBAR (online users) ─── */}
+      {chatOpen && onlineUsers.length > 0 && (
+        <div className="onlinePanel">
+          <div className="onlinePanelHeader">
+            <Users size={18} />
+            <span className="onlinePanelTitle">Online ({onlineUsers.length})</span>
+          </div>
+          <div className="onlineList">
+            {onlineUsers
+              .filter(u => u.id !== user?.id)
+              .map((onlineUser) => (
+                <div key={onlineUser.id} className="onlineUserItem">
+                  {onlineUser.avatarUrl ? (
+                    <img
+                      src={onlineUser.avatarUrl}
+                      alt={onlineUser.displayName}
+                      className="onlineUserAvatar"
+                    />
+                  ) : (
+                    <div
+                      className="onlineUserAvatar"
+                      style={{ backgroundColor: onlineUser.avatarColor }}
+                    >
+                      {onlineUser.displayName.charAt(0)}
+                    </div>
+                  )}
+                  <span className="onlineUserName">{onlineUser.displayName}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {moreMenu && (() => {
         const msg = getMessageById(moreMenu.messageId);

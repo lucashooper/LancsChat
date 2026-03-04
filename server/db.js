@@ -182,10 +182,7 @@ if (roomCount.count === 0) {
     ['confessions', 'Confessions', 'Get things off your chest anonymously', '🤫', 2],
     ['advice', 'Advice', 'Ask for advice from fellow students', '💡', 3],
     ['academic', 'Academic', 'Course help, study groups, exam chat', '📚', 4],
-    ['accommodation', 'Accommodation', 'Housing, flatmates, campus living', '🏡', 5],
-    ['events', 'Events & Socials', 'What\'s happening around campus', '🎉', 6],
-    ['memes', 'Memes & Banter', 'Lancaster memes and general banter', '😂', 7],
-    ['sports', 'Sports & Societies', 'Clubs, sports, and society chat', '⚽', 8],
+    ['memes', 'Movies & Games', 'Discuss movies, TV shows, and games', '🎮', 5],
   ];
 
   const insertMany = db.transaction((rooms) => {
@@ -198,15 +195,21 @@ if (roomCount.count === 0) {
 
 // Migrate sort_order for existing rooms
 const sortOrders = {
-  general: 1, confessions: 2, advice: 3, academic: 4,
-  accommodation: 5, events: 6, memes: 7, sports: 8,
+  general: 1, confessions: 2, advice: 3, academic: 4, memes: 5,
 };
 const updateSort = db.prepare('UPDATE rooms SET sort_order = ? WHERE id = ?');
 for (const [id, order] of Object.entries(sortOrders)) {
   updateSort.run(order, id);
 }
 
-// Fix corrupted emoji for Memes & Banter room
-db.prepare('UPDATE rooms SET icon = ? WHERE id = ?').run('😂', 'memes');
+// Delete removed rooms
+const deleteRoom = db.prepare('DELETE FROM rooms WHERE id = ?');
+deleteRoom.run('accommodation');
+deleteRoom.run('events');
+deleteRoom.run('sports');
+
+// Update Memes & Banter to Movies & Games
+const updateRoom = db.prepare('UPDATE rooms SET name = ?, description = ?, icon = ? WHERE id = ?');
+updateRoom.run('Movies & Games', 'Discuss movies, TV shows, and games', '🎮', 'memes');
 
 module.exports = db;
