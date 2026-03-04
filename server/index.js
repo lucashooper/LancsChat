@@ -428,11 +428,11 @@ app.post('/api/me/update-email', authMiddleware, async (req, res) => {
     
     console.log('[update-email] Confirmation URL generated successfully');
     
-    // Step 2: Update email in Supabase (unconfirmed)
+    // Step 2: Update email in Supabase
+    // Note: Supabase automatically marks the new email as unconfirmed when you change it
     console.log('[update-email] Step 2: Updating email in Supabase...');
     const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(req.userId, {
       email: newEmail,
-      email_confirm: false, // Keep unconfirmed until they click the link
     });
     
     if (updateError) {
