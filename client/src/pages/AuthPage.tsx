@@ -235,7 +235,11 @@ export default function AuthPage() {
   };
 
   const showResend =
-    error.includes('not verified') || error.includes('verification link') || error.includes('no longer valid');
+    error.includes('not verified') ||
+    error.includes('verification link') ||
+    error.includes('no longer valid') ||
+    error.includes('already be confirmed') ||
+    error.includes('Resend verification');
 
   return (
     <div className="authPage">

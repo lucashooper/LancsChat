@@ -26,24 +26,40 @@ export function clearPkceCode(): void {
   }
 }
 
-/** Parse Supabase OAuth/error fragments from the URL hash (e.g. #error=access_denied). */
+/**
+ * Parse Supabase auth errors from both the URL hash (#error=...) and query string (?error=...).
+ * PKCE flow uses query params for errors; implicit flow uses hash fragments.
+ */
 export function parseAuthHashError(): { message: string; code: string } | null {
+  // Check query string first (PKCE flow)
+  const qp = new URLSearchParams(window.location.search);
+  if (qp.get('error')) {
+    const code = qp.get('error_code') || qp.get('error') || '';
+    const description = qp.get('error_description')?.replace(/\+/g, ' ') || '';
+    return { code, message: mapAuthErrorCode(code, description) };
+  }
+
+  // Fall back to hash fragment (implicit flow / legacy)
   const raw = window.location.hash.replace(/^#/, '');
   if (!raw) return null;
-
   const params = new URLSearchParams(raw);
   const error = params.get('error');
   if (!error) return null;
-
   const code = params.get('error_code') || error;
   const description = params.get('error_description')?.replace(/\+/g, ' ') || '';
-
   return { code, message: mapAuthErrorCode(code, description) };
 }
 
+/** Remove auth error params from both the URL hash and query string. */
 export function clearAuthHash(): void {
-  if (window.location.hash) {
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  const url = new URL(window.location.href);
+  let changed = false;
+  for (const key of ['error', 'error_code', 'error_description']) {
+    if (url.searchParams.has(key)) { url.searchParams.delete(key); changed = true; }
+  }
+  if (changed || url.hash) {
+    url.hash = '';
+    window.history.replaceState(null, '', url.toString().replace(/\?$/, ''));
   }
 }
 
