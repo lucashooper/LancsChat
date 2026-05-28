@@ -306,31 +306,30 @@ app.get('/api/rooms', (req, res) => {
 app.get('/api/me', authMiddleware, async (req, res) => {
   const meta = req.userMeta || {};
   const email = (req.decoded && req.decoded.email) || meta.email || '';
-  console.log('[/api/me] Request from user:', req.userId);
-  console.log('[/api/me] Metadata:', { display_name: meta.display_name, avatar_color: meta.avatar_color, avatar_url: meta.avatar_url });
-  const u = ensureLocalUser(req.userId, email, meta.display_name, meta.avatar_color, meta.avatar_url);
-  console.log('[/api/me] ensureLocalUser returned:', u);
-  const full = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin, is_banned, banned_reason, has_seen_intro, created_at, last_seen FROM users WHERE id = ?').get(u.id);
-  console.log('[/api/me] Full user from DB:', full);
-  
-  // Check email confirmation status from Supabase directly (JWT token doesn't update after confirmation)
+
   let emailConfirmed = false;
+
   if (supabase) {
     try {
       const { data: userData, error: userError } = await supabase.auth.admin.getUserById(req.userId);
-      if (!userError && userData?.user?.email_confirmed_at) {
-        emailConfirmed = true;
-        console.log('[/api/me] Email confirmed in Supabase:', userData.user.email_confirmed_at);
-      } else {
-        console.log('[/api/me] Email NOT confirmed in Supabase');
+      if (userError || !userData?.user) {
+        console.warn('[/api/me] Supabase user not found (deleted or invalid):', req.userId, userError?.message);
+        return res.status(401).json({ error: 'Account no longer exists', code: 'ACCOUNT_DELETED' });
       }
+
+      const supaEmail = userData.user.email || email;
+      const isNoEmail = supaEmail.includes('@noemail.lancschat.lol');
+      emailConfirmed = isNoEmail || !!userData.user.email_confirmed_at;
     } catch (err) {
-      console.error('[/api/me] Error checking email confirmation:', err);
+      console.error('[/api/me] Error checking Supabase user:', err.message);
+      return res.status(503).json({ error: 'Could not verify account status' });
     }
   }
-  console.log('[/api/me] Email confirmed status:', emailConfirmed);
-  
-  const response = {
+
+  const u = ensureLocalUser(req.userId, email, meta.display_name, meta.avatar_color, meta.avatar_url);
+  const full = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin, is_banned, banned_reason, has_seen_intro, created_at, last_seen FROM users WHERE id = ?').get(u.id);
+
+  res.json({
     id: full.id,
     email: full.email,
     displayName: full.display_name,
@@ -340,12 +339,10 @@ app.get('/api/me', authMiddleware, async (req, res) => {
     isBanned: !!full.is_banned,
     bannedReason: full.banned_reason || null,
     hasSeenIntro: !!full.has_seen_intro,
-    emailConfirmed: emailConfirmed,
+    emailConfirmed,
     createdAt: full.created_at,
     lastSeen: full.last_seen,
-  };
-  console.log('[/api/me] Sending response:', response);
-  res.json(response);
+  });
 });
 
 app.post('/api/me/intro-seen', authMiddleware, (req, res) => {

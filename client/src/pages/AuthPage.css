@@ -1,0 +1,285 @@
+.authPage {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.authBg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+}
+
+.authBgSlide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 1.4s ease-in-out;
+}
+
+.authBgSlide--active {
+  opacity: 0.38;
+}
+
+.authBgOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.72) 0%,
+    rgba(0, 0, 0, 0.55) 45%,
+    rgba(0, 0, 0, 0.82) 100%
+  );
+}
+
+.authShell {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+}
+
+.authCard {
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 48px 44px;
+  width: 100%;
+}
+
+.authLogo {
+  height: 48px;
+  width: 48px;
+  margin: 0 auto 20px;
+  display: block;
+  object-fit: contain;
+}
+
+.authTitle {
+  font-size: 32px;
+  font-weight: 700;
+  color: #fafafa;
+  text-align: center;
+  margin: 0 0 8px;
+  letter-spacing: -0.5px;
+}
+
+.authSubtitle {
+  color: #a3a3a3;
+  font-size: 15px;
+  text-align: center;
+  margin: 0 0 32px;
+  line-height: 22px;
+}
+
+.authInput {
+  width: 100%;
+  padding: 15px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #363636;
+  border-radius: 8px;
+  color: #fafafa;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.authInput:focus {
+  border-color: #0095f6;
+}
+
+.authFieldStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.authPasswordWrap {
+  position: relative;
+  width: 100%;
+}
+
+.authPasswordWrap .authInput {
+  padding-right: 44px;
+}
+
+.authEyeBtn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #737373;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.authBtnPrimary {
+  width: 100%;
+  padding: 14px 16px;
+  background: #0095f6;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+}
+
+.authBtnPrimary:hover:not(:disabled) {
+  background: #1aa1f7;
+}
+
+.authBtnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.authBtnSecondary {
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: 1px solid #363636;
+  border-radius: 10px;
+  color: #a8a8a8;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.authBtnSecondary:hover {
+  border-color: #555;
+  color: #e0e0e0;
+}
+
+.authBtnGhost {
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: none;
+  color: #737373;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.authBtnLink {
+  width: 100%;
+  padding: 10px;
+  background: none;
+  border: none;
+  color: #0095f6;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.authDivider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 22px 0;
+}
+
+.authDividerLine {
+  flex: 1;
+  height: 1px;
+  background: #262626;
+}
+
+.authDividerText {
+  color: #737373;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.authError {
+  padding: 12px 14px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 14px;
+  margin-bottom: 16px;
+  line-height: 1.45;
+}
+
+.authEmailPanel {
+  text-align: center;
+}
+
+.authEmailIcon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #0095f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  color: #fff;
+}
+
+.authEmailHeading {
+  color: #fafafa;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.authEmailAddress {
+  color: #fafafa;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 16px;
+  word-break: break-all;
+}
+
+.authJunkTip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #737373;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 0 0 28px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 520px) {
+  .authCard {
+    padding: 36px 24px;
+  }
+
+  .authTitle {
+    font-size: 28px;
+  }
+}

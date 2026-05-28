@@ -5,7 +5,35 @@ import { SocketProvider } from './context/SocketContext';
 import AuthPage from './pages/AuthPage';
 import ChatPage from './pages/ChatPage';
 import AdminPage from './pages/AdminPage';
+import { isNoEmailAccount } from './lib/authErrors';
+import AuthBackground from './components/AuthBackground';
+import { Trash2 } from 'lucide-react';
+import './pages/AuthPage.css';
 import './App.css';
+
+function EmailVerificationGate({ email, logout }: { email: string; logout: () => Promise<void> }) {
+  return (
+    <div className="authPage">
+      <AuthBackground />
+      <div className="authShell animate-fade-in">
+        <div className="authCard appGateCard" style={{ textAlign: 'center' }}>
+          <img src="/Lancaster-Uni-Icon-1.png" alt="LancsChat" className="authLogo" />
+          <h2 className="authEmailHeading">Verify your email</h2>
+          <p className="appGateText">
+            Confirm <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{email}</strong> to access LancsChat.
+          </p>
+          <p className="authJunkTip" style={{ marginTop: 16 }}>
+            <Trash2 size={16} strokeWidth={1.75} />
+            Can&apos;t see it? Check your junk folder
+          </p>
+          <div className="appGateActions" style={{ marginTop: 20 }}>
+            <button className="appGateBtn" onClick={() => void logout()}>Log out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const { user, loading, logout, markIntroSeen, token } = useAuth();
@@ -115,6 +143,11 @@ function App() {
     );
   }
 
+  const hasRealEmail = user.email && !isNoEmailAccount(user.email);
+  if (hasRealEmail && !user.emailConfirmed) {
+    return <EmailVerificationGate email={user.email} logout={logout} />;
+  }
+
   return (
     <>
       {user.hasSeenIntro === false && (
@@ -122,7 +155,9 @@ function App() {
           <div className="introCard animate-fade-in">
             <img src="/Lancaster-Uni-Icon-1.png" alt="LancsChat" className="introLogo" />
             <h2 className="introTitle">Welcome to LancsChat</h2>
-            <p className="introText">Anonymous chat for Lancaster University students.</p>
+            <p className="introText">
+              The exclusive anonymous chat for Lancaster students — say what you really think.
+            </p>
 
             <div className="introRules">
               <h3 className="introRulesTitle">Community rules</h3>

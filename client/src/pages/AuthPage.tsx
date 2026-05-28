@@ -1,13 +1,62 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { isEmailVerified, isNoEmailAccount } from '../lib/authErrors';
+import { getAuthRedirectUrl } from '../lib/authRedirect';
+import AuthBackground from '../components/AuthBackground';
+import { Eye, EyeOff, Loader2, Mail, Trash2 } from 'lucide-react';
+import './AuthPage.css';
 
 type AuthStep = 'welcome' | 'register' | 'check-email' | 'login' | 'forgot-password' | 'reset-sent';
 
 const ALLOWED_DOMAIN = 'lancaster.ac.uk';
 void ALLOWED_DOMAIN;
 
+function AuthHeader() {
+  return (
+    <>
+      <img src="/Lancaster-Uni-Icon-1.png" alt="Lancaster University" className="authLogo" />
+      <h1 className="authTitle">LancsChat</h1>
+      <p className="authSubtitle">Exclusive anonymous chat for Lancaster students</p>
+    </>
+  );
+}
+
+function JunkFolderTip() {
+  return (
+    <p className="authJunkTip">
+      <Trash2 size={16} strokeWidth={1.75} />
+      Can&apos;t see it? Check your junk folder
+    </p>
+  );
+}
+
+function EmailStatusPanel({
+  emailAddress,
+  onContinue,
+  continueLabel = 'Go to Log In',
+}: {
+  emailAddress: string;
+  onContinue: () => void;
+  continueLabel?: string;
+}) {
+  return (
+    <div className="authEmailPanel">
+      <div className="authEmailIcon">
+        <Mail size={26} strokeWidth={1.75} />
+      </div>
+      <h2 className="authEmailHeading">Check your email</h2>
+      <p className="authEmailAddress">{emailAddress}</p>
+      <JunkFolderTip />
+      <button type="button" className="authBtnPrimary" onClick={onContinue}>
+        {continueLabel}
+      </button>
+    </div>
+  );
+}
+
 export default function AuthPage() {
+  const { authMessage, clearAuthMessage } = useAuth();
   const [step, setStep] = useState<AuthStep>('welcome');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,6 +65,14 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+
+  useEffect(() => {
+    if (authMessage) {
+      setError(authMessage);
+      setStep('login');
+      clearAuthMessage();
+    }
+  }, [authMessage, clearAuthMessage]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,13 +85,10 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      // If no email provided, generate a placeholder so Supabase auth works
       const hasRealEmail = email.trim().length > 0;
       const signUpEmail = hasRealEmail
         ? email.toLowerCase().trim()
         : `${displayName.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now()}@noemail.lancschat.lol`;
-
-      console.log('[Signup] Attempting signup with:', { signUpEmail, hasRealEmail, displayName: displayName.trim() });
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: signUpEmail,
@@ -44,52 +98,38 @@ export default function AuthPage() {
             display_name: displayName.trim(),
             has_real_email: hasRealEmail,
           },
-          emailRedirectTo: import.meta.env.VITE_APP_URL || window.location.origin,
+          emailRedirectTo: getAuthRedirectUrl(),
         },
       });
-
-      console.log('[Signup] Response:', { data, signUpError });
-      console.log('[Signup] Session:', data?.session);
-      console.log('[Signup] User:', data?.user);
 
       if (signUpError) throw signUpError;
 
       if (hasRealEmail) {
         setStep('check-email');
       } else {
-        // For no-email signups: auto-confirm via server admin API, then sign in
         const userId = data?.user?.id;
         if (userId) {
-          console.log('[Signup] Confirming user via server admin API...');
           const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-          const serverUrl = apiUrl.replace('/api', ''); // Remove /api suffix if present
+          const serverUrl = apiUrl.replace('/api', '');
           const confirmRes = await fetch(`${serverUrl}/api/auth/confirm-user`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId }),
           });
           const confirmData = await confirmRes.json();
-          console.log('[Signup] Confirm response:', confirmData);
 
           if (!confirmRes.ok) {
             throw new Error(confirmData.error || 'Failed to confirm account');
           }
 
-          // Now sign in
-          console.log('[Signup] Auto-login after confirmation...');
           const { error: loginError } = await supabase.auth.signInWithPassword({
             email: signUpEmail,
             password,
           });
-          if (loginError) {
-            console.error('[Signup] Auto-login failed:', loginError);
-            throw loginError;
-          }
-          console.log('[Signup] Auto-login successful');
+          if (loginError) throw loginError;
         }
       }
     } catch (err: unknown) {
-      console.error('[Signup] Error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
@@ -102,26 +142,59 @@ export default function AuthPage() {
     setLoading(true);
     try {
       let loginEmail = email.toLowerCase().trim();
-      
-      // If input doesn't contain @, treat as username and fetch email from server
+
       if (!loginEmail.includes('@')) {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
         const serverUrl = apiUrl.replace('/api', '');
         const response = await fetch(`${serverUrl}/api/email-by-username?username=${encodeURIComponent(loginEmail)}`);
-        if (!response.ok) {
-          throw new Error('Username not found');
-        }
+        if (!response.ok) throw new Error('Username not found');
         const data = await response.json();
         loginEmail = data.email;
       }
-      
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password,
       });
       if (signInError) throw signInError;
+
+      const signedInUser = data.user;
+      if (
+        signedInUser &&
+        !isNoEmailAccount(signedInUser.email) &&
+        !isEmailVerified(signedInUser.email, signedInUser.email_confirmed_at)
+      ) {
+        await supabase.auth.signOut();
+        setEmail(loginEmail.includes('@') ? loginEmail : email);
+        throw new Error(
+          'Your email is not verified yet. Check your inbox (and junk folder), or tap below to resend.',
+        );
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    const targetEmail = email.includes('@') ? email.toLowerCase().trim() : '';
+    if (!targetEmail) {
+      setError('Enter your email address above, then try resending.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email: targetEmail,
+        options: { emailRedirectTo: getAuthRedirectUrl() },
+      });
+      if (resendError) throw resendError;
+      setStep('check-email');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not resend verification email');
     } finally {
       setLoading(false);
     }
@@ -134,9 +207,7 @@ export default function AuthPage() {
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         resetEmail.toLowerCase().trim(),
-        {
-          redirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/reset-password`,
-        }
+        { redirectTo: `${getAuthRedirectUrl()}/reset-password` },
       );
       if (resetError) throw resetError;
       setStep('reset-sent');
@@ -147,220 +218,68 @@ export default function AuthPage() {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '14px 16px',
-    backgroundColor: '#121212',
-    border: '1px solid #363636',
-    borderRadius: '6px',
-    color: '#fafafa',
-    fontSize: '14px',
-    outline: 'none',
-    transition: 'border-color 0.2s',
-    fontFamily: 'inherit',
-  };
-
-  const primaryBtnStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '12px 16px',
-    backgroundColor: '#0095f6',
-    border: 'none',
-    borderRadius: '10px',
-    color: '#fff',
-    fontSize: '14px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'background-color 0.2s',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-    fontFamily: 'inherit',
-  };
-
-  const secondaryBtnStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '12px 16px',
-    backgroundColor: 'transparent',
-    border: '1px solid #363636',
-    borderRadius: '10px',
-    color: '#a8a8a8',
-    fontSize: '14px',
-    fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    fontFamily: 'inherit',
-  };
-
-  const cardStyle: React.CSSProperties = {
-    backgroundColor: '#000',
-    border: '1px solid #262626',
-    borderRadius: '12px',
-    padding: '40px',
-    width: '100%',
-    maxWidth: '400px',
-  };
-
-  const dividerStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-    margin: '20px 0',
-  };
-
-  const dividerLineStyle: React.CSSProperties = {
-    flex: 1,
-    height: '1px',
-    backgroundColor: '#262626',
-  };
-
-  const passwordWrapperStyle: React.CSSProperties = {
-    position: 'relative',
-    width: '100%',
-  };
-
-  const eyeBtnStyle: React.CSSProperties = {
-    position: 'absolute',
-    right: '12px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    background: 'none',
-    border: 'none',
-    color: '#737373',
-    cursor: 'pointer',
-    padding: '4px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  };
-
-  const errorStyle: React.CSSProperties = {
-    padding: '12px 14px',
-    backgroundColor: 'rgba(239,68,68,0.1)',
-    border: '1px solid rgba(239,68,68,0.2)',
-    borderRadius: '8px',
-    color: '#f87171',
-    fontSize: '13px',
-    marginBottom: '14px',
-  };
+  const showResend =
+    error.includes('not verified') ||
+    error.includes('verification link') ||
+    error.includes('no longer valid');
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#000',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    }}>
-      <div style={{ width: '100%', maxWidth: '400px' }} className="animate-fade-in">
+    <div className="authPage">
+      <AuthBackground />
 
-        {/* Main Card */}
-        <div style={cardStyle}>
-          {/* Logo */}
-          <img
-            src="/Lancaster-Uni-Icon-1.png"
-            alt="Lancaster University"
-            style={{
-              height: '40px',
-              width: '40px',
-              margin: '0 auto 16px',
-              display: 'block',
-              objectFit: 'contain',
-            }}
-          />
-          {/* Title */}
-          <h1 style={{
-            fontSize: '30px',
-            fontWeight: 700,
-            color: '#fafafa',
-            textAlign: 'center',
-            marginBottom: '4px',
-            letterSpacing: '-0.5px',
-          }}>
-            LancsChat
-          </h1>
-          <p style={{
-            color: '#737373',
-            fontSize: '14px',
-            textAlign: 'center',
-            marginBottom: '28px',
-            lineHeight: '20px',
-          }}>
-            Anonymous chat for Lancaster University students
-          </p>
+      <div className="authShell animate-fade-in">
+        <div className="authCard">
+          <AuthHeader />
 
-          {/* Welcome */}
           {step === 'welcome' && (
             <div>
-              <button
-                onClick={() => setStep('login')}
-                style={primaryBtnStyle}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
-              >
+              <button type="button" className="authBtnPrimary" onClick={() => setStep('login')}>
                 Log In
               </button>
-
-              <div style={dividerStyle}>
-                <div style={dividerLineStyle} />
-                <span style={{ color: '#737373', fontSize: '13px', fontWeight: 500 }}>OR</span>
-                <div style={dividerLineStyle} />
+              <div className="authDivider">
+                <div className="authDividerLine" />
+                <span className="authDividerText">OR</span>
+                <div className="authDividerLine" />
               </div>
-
-              <button
-                onClick={() => setStep('register')}
-                style={secondaryBtnStyle}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#e0e0e0'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#363636'; e.currentTarget.style.color = '#a8a8a8'; }}
-              >
+              <button type="button" className="authBtnSecondary" onClick={() => setStep('register')}>
                 Create new account
               </button>
             </div>
           )}
 
-          {/* Register */}
           {step === 'register' && (
             <form onSubmit={handleRegister}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
+              <div className="authFieldStack">
                 <input
                   type="text"
+                  className="authInput"
                   placeholder="Display name (others will see this)"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   required
                   maxLength={24}
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
                 />
                 <input
                   type="email"
+                  className="authInput"
                   placeholder="Email (optional)"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
                 />
-                <div style={passwordWrapperStyle}>
+                <div className="authPasswordWrap">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    className="authInput"
                     placeholder="Password (min 6 characters)"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
-                    style={{ ...inputStyle, paddingRight: '44px' }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
                   />
                   <button
                     type="button"
+                    className="authEyeBtn"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={eyeBtnStyle}
                     tabIndex={-1}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -368,106 +287,48 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              {error && <div style={errorStyle}>{error}</div>}
+              {error && <div className="authError">{error}</div>}
 
-              <button
-                type="submit"
-                disabled={loading}
-                style={{ ...primaryBtnStyle, opacity: loading ? 0.6 : 1 }}
-                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
-              >
-                {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Sign Up'}
+              <button type="submit" className="authBtnPrimary" disabled={loading}>
+                {loading ? <Loader2 size={16} className="spin" /> : 'Sign Up'}
               </button>
-
-              <button
-                type="button"
-                onClick={() => { setStep('welcome'); setError(''); }}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: 'none',
-                  border: 'none',
-                  color: '#737373',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  marginTop: '12px',
-                  fontFamily: 'inherit',
-                }}
-              >
+              <button type="button" className="authBtnGhost" onClick={() => { setStep('welcome'); setError(''); }}>
                 Back to login
               </button>
             </form>
           )}
 
-          {/* Check Email */}
           {step === 'check-email' && (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                backgroundColor: '#0095f6',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 20px',
-                fontSize: '24px',
-              }}>
-                ✉️
-              </div>
-              <h2 style={{ color: '#fafafa', fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
-                Check your email
-              </h2>
-              <p style={{ color: '#a8a8a8', fontSize: '14px', lineHeight: '22px', marginBottom: '8px' }}>
-                We sent a confirmation link to
-              </p>
-              <p style={{ color: '#fafafa', fontSize: '14px', fontWeight: 500, marginBottom: '24px' }}>
-                {email}
-              </p>
-              <p style={{ color: '#737373', fontSize: '13px', lineHeight: '20px', marginBottom: '24px' }}>
-                Click the link in the email to verify your account. You can close this page.
-              </p>
-              <button
-                onClick={() => { setStep('login'); setError(''); }}
-                style={primaryBtnStyle}
-                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
-              >
-                Go to Log In
-              </button>
-            </div>
+            <EmailStatusPanel
+              emailAddress={email}
+              onContinue={() => { setStep('login'); setError(''); }}
+            />
           )}
 
-          {/* Login */}
           {step === 'login' && (
             <form onSubmit={handleLogin}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
+              <div className="authFieldStack">
                 <input
                   type="text"
+                  className="authInput"
                   placeholder="Email or username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  style={inputStyle}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
                 />
-                <div style={passwordWrapperStyle}>
+                <div className="authPasswordWrap">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    className="authInput"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    style={{ ...inputStyle, paddingRight: '44px' }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
                   />
                   <button
                     type="button"
+                    className="authEyeBtn"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={eyeBtnStyle}
                     tabIndex={-1}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -475,151 +336,70 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              {error && <div style={errorStyle}>{error}</div>}
+              {error && <div className="authError">{error}</div>}
 
-              <button
-                type="submit"
-                disabled={loading}
-                style={{ ...primaryBtnStyle, opacity: loading ? 0.6 : 1 }}
-                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
-              >
-                {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Log In'}
+              <button type="submit" className="authBtnPrimary" disabled={loading}>
+                {loading ? <Loader2 size={16} className="spin" /> : 'Log In'}
               </button>
+
+              {showResend && (
+                <button type="button" className="authBtnLink" disabled={loading} onClick={() => void handleResendVerification()}>
+                  Resend verification email
+                </button>
+              )}
 
               <button
                 type="button"
+                className="authBtnGhost"
                 onClick={() => {
                   setResetEmail(email);
                   setStep('forgot-password');
-                }}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: 'none',
-                  border: 'none',
-                  color: '#737373',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
                 }}
               >
                 Forgot password?
               </button>
 
-              <div style={dividerStyle}>
-                <div style={dividerLineStyle} />
-                <span style={{ color: '#737373', fontSize: '13px', fontWeight: 500 }}>OR</span>
-                <div style={dividerLineStyle} />
+              <div className="authDivider">
+                <div className="authDividerLine" />
+                <span className="authDividerText">OR</span>
+                <div className="authDividerLine" />
               </div>
 
-              <button
-                type="button"
-                onClick={() => { setStep('register'); setError(''); }}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  background: 'none',
-                  border: 'none',
-                  color: '#0095f6',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Don't have an account? Sign up
+              <button type="button" className="authBtnLink" onClick={() => { setStep('register'); setError(''); }}>
+                Don&apos;t have an account? Sign up
               </button>
             </form>
           )}
+
+          {step === 'forgot-password' && (
+            <form onSubmit={handleForgotPassword}>
+              {error && <div className="authError">{error}</div>}
+              <div className="authFieldStack">
+                <input
+                  type="email"
+                  className="authInput"
+                  placeholder="Email"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <button type="submit" className="authBtnPrimary" disabled={loading}>
+                {loading ? <Loader2 size={16} className="spin" /> : 'Send reset link'}
+              </button>
+              <button type="button" className="authBtnGhost" onClick={() => { setStep('login'); setError(''); }}>
+                Back to login
+              </button>
+            </form>
+          )}
+
+          {step === 'reset-sent' && (
+            <EmailStatusPanel
+              emailAddress={resetEmail}
+              onContinue={() => { setStep('login'); setError(''); }}
+            />
+          )}
         </div>
-
-        {/* Footer - removed for cleaner UI */}
-
-        {step === 'forgot-password' && (
-          <form onSubmit={handleForgotPassword} style={{ marginTop: '24px' }}>
-            {error && <div style={errorStyle}>{error}</div>}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
-              <input
-                type="email"
-                placeholder="Email"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                required
-                style={inputStyle}
-                onFocus={(e) => { e.currentTarget.style.borderColor = '#0095f6'; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = '#363636'; }}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ ...primaryBtnStyle, opacity: loading ? 0.6 : 1 }}
-              onMouseEnter={(e) => { if (!loading) e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
-            >
-              {loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : 'Send reset link'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { setStep('login'); setError(''); }}
-              style={{
-                width: '100%',
-                padding: '10px',
-                background: 'none',
-                border: 'none',
-                color: '#737373',
-                fontSize: '13px',
-                cursor: 'pointer',
-                marginTop: '12px',
-                fontFamily: 'inherit',
-              }}
-            >
-              Back to login
-            </button>
-          </form>
-        )}
-
-        {step === 'reset-sent' && (
-          <div style={{ textAlign: 'center', marginTop: '24px' }}>
-            <div style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              backgroundColor: '#0095f6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 20px',
-              fontSize: '24px',
-            }}>
-              ✉️
-            </div>
-            <h2 style={{ color: '#fafafa', fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
-              Check your email
-            </h2>
-            <p style={{ color: '#a8a8a8', fontSize: '14px', lineHeight: '22px', marginBottom: '8px' }}>
-              We sent a password reset link to
-            </p>
-            <p style={{ color: '#fafafa', fontSize: '14px', fontWeight: 500, marginBottom: '24px' }}>
-              {resetEmail}
-            </p>
-            <p style={{ color: '#737373', fontSize: '13px', lineHeight: '20px', marginBottom: '24px' }}>
-              Click the link in the email to reset your password. You can close this page.
-            </p>
-            <button
-              onClick={() => { setStep('login'); setError(''); }}
-              style={primaryBtnStyle}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1aa1f7'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#0095f6'; }}
-            >
-              Go to Log In
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
