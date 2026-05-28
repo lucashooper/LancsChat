@@ -1,8 +1,8 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, User as SupaUser } from '@supabase/supabase-js';
 import { api } from '../api';
-import { clearAuthHash, hashHasAuthTokens, mapAuthErrorCode, parseAuthHashError } from '../lib/authErrors';
+import { clearAuthHash, clearPkceCode, hasPkceCode, hashHasAuthTokens, mapAuthErrorCode, parseAuthHashError } from '../lib/authErrors';
 
 interface User {
   id: string;
@@ -41,24 +41,27 @@ function buildUser(supaUser: SupaUser): User {
   const meta = supaUser.user_metadata || {};
   const name = meta.display_name || meta.username || 'Anonymous';
   const colorIndex = supaUser.id.charCodeAt(0) % AVATAR_COLORS.length;
+  const isNoEmail = (supaUser.email || '').includes('@noemail.lancschat.lol');
   return {
     id: supaUser.id,
     email: supaUser.email || '',
     displayName: name,
     avatarColor: meta.avatar_color || AVATAR_COLORS[colorIndex],
     avatarUrl: meta.avatar_url || undefined,
+    // Derive emailConfirmed directly from Supabase session — no-email accounts are always confirmed
+    emailConfirmed: isNoEmail || !!supaUser.email_confirmed_at,
   };
 }
 
-function describeFetchFailure(err: unknown): string {
-  if (err instanceof DOMException && err.name === 'AbortError') {
-    return 'Request timed out after 10s';
-  }
+function isNetworkError(err: unknown): boolean {
+  if (err instanceof DOMException) return true;
   const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('Failed to fetch')) {
-    return 'Network error — cannot reach the LancsChat server (check connection or server status)';
-  }
-  return msg;
+  return (
+    msg.includes('Failed to fetch') ||
+    msg.includes('NetworkError') ||
+    msg.includes('ERR_CONNECTION_REFUSED') ||
+    msg.includes('ECONNREFUSED')
+  );
 }
 
 function logAuth(level: 'info' | 'warn' | 'error', event: string, detail?: Record<string, unknown>) {
@@ -76,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const hydratingRef = { current: false };
+  const hydratingRef = useRef(false);
 
   const signOutWithMessage = async (message: string) => {
     logAuth('warn', 'Signing out', { reason: message });
@@ -94,13 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (retryCount === 0) hydratingRef.current = true;
 
     const MAX_RETRIES = 3;
-    const TIMEOUT_MS = 10000;
+    const TIMEOUT_MS = 8000;
     const localIntroSeen = localStorage.getItem(`lancschat_intro_seen_${base.id}`) === '1';
 
     try {
       logAuth('info', 'Fetching profile from server', {
         userId: base.id,
         attempt: `${retryCount + 1}/${MAX_RETRIES + 1}`,
+        server: API_URL,
       });
 
       const controller = new AbortController();
@@ -117,13 +121,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const errCode = errData.code as string | undefined;
         const errMsg = errData.error || `HTTP ${res.status}`;
 
+        // Explicit auth failures → sign out
         if (res.status === 401 || errCode === 'ACCOUNT_DELETED') {
           await signOutWithMessage(mapAuthErrorCode('ACCOUNT_DELETED'));
           return;
         }
 
         if (retryCount < MAX_RETRIES && res.status >= 500) {
-          const delay = Math.min(2000 * (retryCount + 1), 6000);
+          const delay = 2000 * (retryCount + 1);
           logAuth('warn', 'Server error, retrying', { status: res.status, retryInMs: delay });
           await new Promise((r) => setTimeout(r, delay));
           return hydrateServerFlags(token, base, retryCount + 1);
@@ -133,10 +138,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const me = await res.json();
-      logAuth('info', 'Profile loaded', {
+      logAuth('info', 'Profile loaded from server', {
         userId: base.id,
         emailConfirmed: !!me.emailConfirmed,
         isBanned: !!me.isBanned,
+        isAdmin: !!me.isAdmin,
       });
 
       const introSeen = !!me.hasSeenIntro || localIntroSeen;
@@ -155,15 +161,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emailConfirmed: !!me.emailConfirmed,
       });
     } catch (err) {
-      const reason = describeFetchFailure(err);
-      const isRetryable =
-        err instanceof DOMException ||
-        (err instanceof Error && err.message.includes('Failed to fetch'));
+      const netError = isNetworkError(err);
+      const reason = netError
+        ? `Server unreachable (${API_URL}) — check VITE_API_URL or Render status`
+        : err instanceof Error ? err.message : String(err);
 
-      if (retryCount < MAX_RETRIES && isRetryable) {
-        const delay = Math.min(2000 * (retryCount + 1), 6000);
-        logAuth('warn', 'Could not reach server, retrying', {
-          reason,
+      if (retryCount < MAX_RETRIES && netError) {
+        const delay = 2000 * (retryCount + 1);
+        logAuth('warn', 'Server unreachable, retrying', {
           attempt: `${retryCount + 1}/${MAX_RETRIES}`,
           retryInMs: delay,
         });
@@ -171,10 +176,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return hydrateServerFlags(token, base, retryCount + 1);
       }
 
-      logAuth('error', 'Profile sync failed — signing out', { reason, userId: base.id });
-      await signOutWithMessage(
-        'Could not connect to LancsChat. Your session was cleared — please log in again.',
-      );
+      if (netError) {
+        // Server just unreachable (cold start, local dev without server, etc.)
+        // Don't sign out — use Supabase session data as fallback
+        logAuth('warn', 'Server unreachable after retries — using offline session', {
+          reason,
+          userId: base.id,
+          emailConfirmedFromSupabase: base.emailConfirmed,
+        });
+        const introSeen = localStorage.getItem(`lancschat_intro_seen_${base.id}`) === '1';
+        setUser({ ...base, hasSeenIntro: introSeen });
+      } else {
+        // Non-network failure (bad response, auth error) → sign out
+        logAuth('error', 'Auth error from server — signing out', { reason, userId: base.id });
+        await signOutWithMessage('Could not verify your account. Please log in again.');
+      }
     } finally {
       if (retryCount === 0) hydratingRef.current = false;
     }
@@ -192,15 +208,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     const init = async () => {
-      // Let Supabase read verification tokens from the URL hash first
+      // getSession() with PKCE flow automatically calls exchangeCodeForSession()
+      // when ?code= is present, so we must call it BEFORE reading the URL ourselves.
       const { data: { session: initialSession } } = await supabase.auth.getSession();
 
+      // After getSession processes everything, clean up the URL
+      if (hasPkceCode()) {
+        logAuth('info', 'PKCE code exchanged successfully', { hasSession: !!initialSession });
+        clearPkceCode();
+      }
+
+      // Only treat hash as an error if Supabase didn't produce a valid session from it
       const hashError = parseAuthHashError();
       const hasAuthTokens = hashHasAuthTokens();
 
       if (hashError && !initialSession && !hasAuthTokens) {
         clearAuthHash();
-        logAuth('warn', 'Auth callback failed', { code: hashError.code });
+        logAuth('warn', 'Auth callback error in URL hash', { code: hashError.code });
         setAuthMessage(hashError.message);
         await supabase.auth.signOut();
         if (mounted) {
@@ -211,9 +235,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (initialSession?.user || hasAuthTokens) {
-        clearAuthHash();
-      }
+      if (initialSession?.user || hasAuthTokens) clearAuthHash();
 
       if (initialSession?.user) {
         setSession(initialSession);
@@ -229,10 +251,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void init();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        clearAuthHash();
-      }
+      logAuth('info', 'Auth state change', { event, hasSession: !!s });
 
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') clearAuthHash();
+
+      // Ignore events while init is processing a hash error (no session, no tokens)
       const hashError = parseAuthHashError();
       if (hashError && !s && !hashHasAuthTokens()) return;
 
@@ -270,10 +293,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(`lancschat_intro_seen_${user.id}`, '1');
     try {
       await api('/me/intro-seen', { method: 'POST', token });
-    } catch (err) {
-      logAuth('error', 'Failed to save intro-seen on server', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+    } catch {
+      // Non-critical — already saved to localStorage
     }
     setUser({ ...user, hasSeenIntro: true });
   };
@@ -282,17 +303,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{
-        user,
-        session,
-        token,
-        logout,
-        loading,
-        authMessage,
-        clearAuthMessage,
-        refreshUser,
-        markIntroSeen,
-      }}
+      value={{ user, session, token, logout, loading, authMessage, clearAuthMessage, refreshUser, markIntroSeen }}
     >
       {children}
     </AuthContext.Provider>

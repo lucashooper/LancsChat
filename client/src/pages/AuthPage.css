@@ -1,3 +1,4 @@
+/* ── Page shell ─────────────────────────────────────────────────────── */
 .authPage {
   position: relative;
   min-height: 100vh;
@@ -7,39 +8,27 @@
   justify-content: center;
   padding: 24px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Subtle premium dark background: deep blue-black with soft vignette */
+  background-color: #08080c;
+  background-image:
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(14, 14, 26, 0.95) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(0, 60, 100, 0.06) 0%, transparent 60%);
 }
 
-.authBg {
+/* Very faint noise grain — pure CSS, no image files needed */
+.authPage::before {
+  content: '';
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: #000;
+  pointer-events: none;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
 }
 
-.authBgSlide {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  opacity: 0;
-  transition: opacity 1.4s ease-in-out;
-}
-
-.authBgSlide--active {
-  opacity: 0.38;
-}
-
-.authBgOverlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.72) 0%,
-    rgba(0, 0, 0, 0.55) 45%,
-    rgba(0, 0, 0, 0.82) 100%
-  );
-}
-
+/* ── Content shell ──────────────────────────────────────────────────── */
 .authShell {
   position: relative;
   z-index: 1;
@@ -47,15 +36,21 @@
   max-width: 480px;
 }
 
+/* ── Card ───────────────────────────────────────────────────────────── */
 .authCard {
-  background: rgba(0, 0, 0, 0.82);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 16px;
   padding: 48px 44px;
   width: 100%;
+  /* Hairline inner highlight at top edge */
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 24px 64px rgba(0, 0, 0, 0.6);
 }
 
+/* ── Header ─────────────────────────────────────────────────────────── */
 .authLogo {
   height: 48px;
   width: 48px;
@@ -65,44 +60,52 @@
 }
 
 .authTitle {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 700;
-  color: #fafafa;
+  color: #f5f5f5;
   text-align: center;
   margin: 0 0 8px;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.4px;
 }
 
 .authSubtitle {
-  color: #a3a3a3;
-  font-size: 15px;
+  color: #6b6b6b;
+  font-size: 14px;
   text-align: center;
   margin: 0 0 32px;
-  line-height: 22px;
+  line-height: 20px;
+  letter-spacing: 0.1px;
 }
 
+/* ── Inputs ─────────────────────────────────────────────────────────── */
 .authInput {
   width: 100%;
-  padding: 15px 16px;
+  padding: 14px 16px;
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid #363636;
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 8px;
-  color: #fafafa;
-  font-size: 15px;
+  color: #f0f0f0;
+  font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.18s, background 0.18s;
   font-family: inherit;
+  box-sizing: border-box;
 }
 
 .authInput:focus {
-  border-color: #0095f6;
+  border-color: rgba(0, 149, 246, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.authInput::placeholder {
+  color: #454545;
 }
 
 .authFieldStack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
 .authPasswordWrap {
@@ -121,25 +124,29 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #737373;
+  color: #4a4a4a;
   cursor: pointer;
   padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: color 0.15s;
 }
 
+.authEyeBtn:hover { color: #888; }
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
 .authBtnPrimary {
   width: 100%;
-  padding: 14px 16px;
+  padding: 13px 16px;
   background: #0095f6;
   border: none;
   border-radius: 10px;
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background 0.18s, opacity 0.18s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -147,44 +154,39 @@
   font-family: inherit;
 }
 
-.authBtnPrimary:hover:not(:disabled) {
-  background: #1aa1f7;
-}
-
-.authBtnPrimary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.authBtnPrimary:hover:not(:disabled) { background: #1aa1f7; }
+.authBtnPrimary:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .authBtnSecondary {
   width: 100%;
-  padding: 14px 16px;
+  padding: 13px 16px;
   background: transparent;
-  border: 1px solid #363636;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  color: #a8a8a8;
-  font-size: 15px;
+  color: #909090;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.18s, color 0.18s;
   font-family: inherit;
 }
 
-.authBtnSecondary:hover {
-  border-color: #555;
-  color: #e0e0e0;
-}
+.authBtnSecondary:hover { border-color: rgba(255, 255, 255, 0.22); color: #d0d0d0; }
 
 .authBtnGhost {
   width: 100%;
   padding: 10px;
   background: none;
   border: none;
-  color: #737373;
-  font-size: 14px;
+  color: #4a4a4a;
+  font-size: 13px;
   cursor: pointer;
   font-family: inherit;
+  margin-top: 4px;
+  transition: color 0.15s;
 }
+
+.authBtnGhost:hover { color: #737373; }
 
 .authBtnLink {
   width: 100%;
@@ -192,42 +194,49 @@
   background: none;
   border: none;
   color: #0095f6;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  transition: color 0.15s;
 }
 
+.authBtnLink:hover { color: #1aa1f7; }
+
+/* ── Divider ────────────────────────────────────────────────────────── */
 .authDivider {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin: 22px 0;
+  gap: 14px;
+  margin: 20px 0;
 }
 
 .authDividerLine {
   flex: 1;
   height: 1px;
-  background: #262626;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .authDividerText {
-  color: #737373;
-  font-size: 13px;
+  color: #3a3a3a;
+  font-size: 12px;
   font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
+/* ── Error ──────────────────────────────────────────────────────────── */
 .authError {
   padding: 12px 14px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.18);
   border-radius: 8px;
   color: #f87171;
-  font-size: 14px;
-  margin-bottom: 16px;
-  line-height: 1.45;
+  font-size: 13px;
+  margin-bottom: 14px;
+  line-height: 1.5;
 }
 
+/* ── Email confirmation panel ───────────────────────────────────────── */
 .authEmailPanel {
   text-align: center;
 }
@@ -236,24 +245,25 @@
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: #0095f6;
+  background: rgba(0, 149, 246, 0.15);
+  border: 1px solid rgba(0, 149, 246, 0.25);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 20px;
-  color: #fff;
+  margin: 0 auto 18px;
+  color: #0095f6;
 }
 
 .authEmailHeading {
-  color: #fafafa;
-  font-size: 20px;
+  color: #f0f0f0;
+  font-size: 19px;
   font-weight: 600;
-  margin: 0 0 12px;
+  margin: 0 0 10px;
 }
 
 .authEmailAddress {
-  color: #fafafa;
-  font-size: 15px;
+  color: #e0e0e0;
+  font-size: 14px;
   font-weight: 500;
   margin: 0 0 16px;
   word-break: break-all;
@@ -263,23 +273,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  color: #737373;
-  font-size: 14px;
+  gap: 7px;
+  color: #555;
+  font-size: 13px;
   line-height: 1.4;
-  margin: 0 0 28px;
-  padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin: 0 0 24px;
 }
 
+/* ── Responsive ─────────────────────────────────────────────────────── */
 @media (max-width: 520px) {
-  .authCard {
-    padding: 36px 24px;
-  }
-
-  .authTitle {
-    font-size: 28px;
-  }
+  .authCard { padding: 36px 22px; }
+  .authTitle { font-size: 26px; }
 }

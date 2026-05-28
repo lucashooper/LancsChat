@@ -1,4 +1,4 @@
-/** True when the URL hash looks like a successful Supabase auth callback. */
+/** True when the URL hash looks like a successful Supabase implicit-flow auth callback. */
 export function hashHasAuthTokens(): boolean {
   const raw = window.location.hash.replace(/^#/, '');
   if (!raw) return false;
@@ -6,11 +6,24 @@ export function hashHasAuthTokens(): boolean {
   return (
     params.has('access_token') ||
     params.has('refresh_token') ||
-    params.has('code') ||
     params.get('type') === 'signup' ||
     params.get('type') === 'recovery' ||
     params.get('type') === 'email'
   );
+}
+
+/** True when the URL has a PKCE ?code= param (Supabase processes this automatically). */
+export function hasPkceCode(): boolean {
+  return new URLSearchParams(window.location.search).has('code');
+}
+
+/** Remove ?code= from the URL after Supabase has exchanged it for a session. */
+export function clearPkceCode(): void {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('code')) {
+    url.searchParams.delete('code');
+    window.history.replaceState(null, '', url.toString());
+  }
 }
 
 /** Parse Supabase OAuth/error fragments from the URL hash (e.g. #error=access_denied). */
@@ -37,10 +50,10 @@ export function clearAuthHash(): void {
 export function mapAuthErrorCode(code: string, description?: string): string {
   switch (code) {
     case 'otp_expired':
-      return 'That verification link is no longer valid. University email often scans links automatically — log in and tap "Resend verification email" for a fresh link. Check junk folder too.';
+      return 'That verification link has expired or was already used. Log in and tap "Resend verification email" for a fresh one.';
     case 'access_denied':
       if (description?.toLowerCase().includes('expired') || description?.toLowerCase().includes('invalid')) {
-        return 'That verification link is no longer valid. University email often scans links automatically — log in and tap "Resend verification email" for a fresh link. Check junk folder too.';
+        return 'That verification link has expired or was already used. Log in and tap "Resend verification email" for a fresh one.';
       }
       return description || 'Access was denied. Please try logging in again.';
     case 'email_not_confirmed':

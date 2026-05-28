@@ -6,7 +6,6 @@ import AuthPage from './pages/AuthPage';
 import ChatPage from './pages/ChatPage';
 import AdminPage from './pages/AdminPage';
 import { isNoEmailAccount } from './lib/authErrors';
-import AuthBackground from './components/AuthBackground';
 import { Trash2 } from 'lucide-react';
 import './pages/AuthPage.css';
 import './App.css';
@@ -14,21 +13,20 @@ import './App.css';
 function EmailVerificationGate({ email, logout }: { email: string; logout: () => Promise<void> }) {
   return (
     <div className="authPage">
-      <AuthBackground />
       <div className="authShell animate-fade-in">
-        <div className="authCard appGateCard" style={{ textAlign: 'center' }}>
+        <div className="authCard" style={{ textAlign: 'center' }}>
           <img src="/Lancaster-Uni-Icon-1.png" alt="LancsChat" className="authLogo" />
           <h2 className="authEmailHeading">Verify your email</h2>
-          <p className="appGateText">
-            Confirm <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{email}</strong> to access LancsChat.
+          <p style={{ color: '#6b6b6b', fontSize: 14, margin: '0 0 12px', lineHeight: 1.5 }}>
+            Confirm <strong style={{ color: '#d0d0d0' }}>{email}</strong> to access LancsChat.
           </p>
-          <p className="authJunkTip" style={{ marginTop: 16 }}>
-            <Trash2 size={16} strokeWidth={1.75} />
+          <p className="authJunkTip">
+            <Trash2 size={15} strokeWidth={1.75} />
             Can&apos;t see it? Check your junk folder
           </p>
-          <div className="appGateActions" style={{ marginTop: 20 }}>
-            <button className="appGateBtn" onClick={() => void logout()}>Log out</button>
-          </div>
+          <button className="authBtnPrimary" style={{ marginTop: 20 }} onClick={() => void logout()}>
+            Log out
+          </button>
         </div>
       </div>
     </div>

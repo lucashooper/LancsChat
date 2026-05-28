@@ -1,55 +1,73 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { isEmailVerified, isNoEmailAccount } from '../lib/authErrors';
+import { isEmailVerified } from '../lib/authErrors';
 import { getAuthRedirectUrl } from '../lib/authRedirect';
-import AuthBackground from '../components/AuthBackground';
 import { Eye, EyeOff, Loader2, Mail, Trash2 } from 'lucide-react';
 import './AuthPage.css';
 
 type AuthStep = 'welcome' | 'register' | 'check-email' | 'login' | 'forgot-password' | 'reset-sent';
 
-const ALLOWED_DOMAIN = 'lancaster.ac.uk';
-void ALLOWED_DOMAIN;
+const LANCASTER_DOMAIN = 'lancaster.ac.uk';
 
 function AuthHeader() {
   return (
     <>
       <img src="/Lancaster-Uni-Icon-1.png" alt="Lancaster University" className="authLogo" />
       <h1 className="authTitle">LancsChat</h1>
-      <p className="authSubtitle">Exclusive anonymous chat for Lancaster students</p>
+      <p className="authSubtitle">Exclusive to Lancaster University students</p>
     </>
-  );
-}
-
-function JunkFolderTip() {
-  return (
-    <p className="authJunkTip">
-      <Trash2 size={16} strokeWidth={1.75} />
-      Can&apos;t see it? Check your junk folder
-    </p>
   );
 }
 
 function EmailStatusPanel({
   emailAddress,
   onContinue,
-  continueLabel = 'Go to Log In',
+  onResend,
+  resendLoading,
 }: {
   emailAddress: string;
   onContinue: () => void;
-  continueLabel?: string;
+  onResend?: () => void;
+  resendLoading?: boolean;
 }) {
+  const [resent, setResent] = useState(false);
+
+  const handleResend = async () => {
+    if (!onResend) return;
+    onResend();
+    setResent(true);
+    setTimeout(() => setResent(false), 30000);
+  };
+
   return (
     <div className="authEmailPanel">
       <div className="authEmailIcon">
-        <Mail size={26} strokeWidth={1.75} />
+        <Mail size={28} strokeWidth={1.75} />
       </div>
       <h2 className="authEmailHeading">Check your email</h2>
       <p className="authEmailAddress">{emailAddress}</p>
-      <JunkFolderTip />
+      <p className="authJunkTip">
+        <Trash2 size={15} strokeWidth={1.75} />
+        Check your junk folder too
+      </p>
+      {onResend && (
+        <button
+          type="button"
+          className="authBtnGhost"
+          disabled={resendLoading || resent}
+          onClick={() => void handleResend()}
+          style={{ marginBottom: 8 }}
+        >
+          {resendLoading
+            ? 'Sending...'
+            : resent
+            ? 'Email resent ✓'
+            : "Didn't get it? Resend email"}
+        </button>
+      )}
       <button type="button" className="authBtnPrimary" onClick={onContinue}>
-        {continueLabel}
+        Go to Log In
       </button>
     </div>
   );
@@ -74,61 +92,48 @@ export default function AuthPage() {
     }
   }, [authMessage, clearAuthMessage]);
 
+  const validateLancasterEmail = (val: string): string | null => {
+    const trimmed = val.toLowerCase().trim();
+    if (!trimmed) return 'Please enter your @lancaster.ac.uk email address.';
+    if (!trimmed.endsWith(`@${LANCASTER_DOMAIN}`)) {
+      return `LancsChat is exclusive to Lancaster University. Please use your @${LANCASTER_DOMAIN} email.`;
+    }
+    return null;
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!displayName.trim()) {
-      setError('Please choose a display name');
+      setError('Please choose a display name.');
       return;
     }
 
-    setLoading(true);
-    try {
-      const hasRealEmail = email.trim().length > 0;
-      const signUpEmail = hasRealEmail
-        ? email.toLowerCase().trim()
-        : `${displayName.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}${Date.now()}@noemail.lancschat.lol`;
+    const emailError = validateLancasterEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
 
-      const { data, error: signUpError } = await supabase.auth.signUp({
+    const signUpEmail = email.toLowerCase().trim();
+    setLoading(true);
+
+    try {
+      const { error: signUpError } = await supabase.auth.signUp({
         email: signUpEmail,
         password,
         options: {
           data: {
             display_name: displayName.trim(),
-            has_real_email: hasRealEmail,
+            has_real_email: true,
           },
           emailRedirectTo: getAuthRedirectUrl(),
         },
       });
 
       if (signUpError) throw signUpError;
-
-      if (hasRealEmail) {
-        setStep('check-email');
-      } else {
-        const userId = data?.user?.id;
-        if (userId) {
-          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-          const serverUrl = apiUrl.replace('/api', '');
-          const confirmRes = await fetch(`${serverUrl}/api/auth/confirm-user`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId }),
-          });
-          const confirmData = await confirmRes.json();
-
-          if (!confirmRes.ok) {
-            throw new Error(confirmData.error || 'Failed to confirm account');
-          }
-
-          const { error: loginError } = await supabase.auth.signInWithPassword({
-            email: signUpEmail,
-            password,
-          });
-          if (loginError) throw loginError;
-        }
-      }
+      setStep('check-email');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -159,9 +164,10 @@ export default function AuthPage() {
       if (signInError) throw signInError;
 
       const signedInUser = data.user;
+      // Block unverified real emails (no-email/noemail accounts are exempt)
       if (
         signedInUser &&
-        !isNoEmailAccount(signedInUser.email) &&
+        !(signedInUser.email || '').includes('@noemail.lancschat.lol') &&
         !isEmailVerified(signedInUser.email, signedInUser.email_confirmed_at)
       ) {
         await supabase.auth.signOut();
@@ -178,8 +184,8 @@ export default function AuthPage() {
   };
 
   const handleResendVerification = async () => {
-    const targetEmail = email.includes('@') ? email.toLowerCase().trim() : '';
-    if (!targetEmail) {
+    const targetEmail = email.toLowerCase().trim();
+    if (!targetEmail.includes('@')) {
       setError('Enter your email address above, then try resending.');
       return;
     }
@@ -219,14 +225,10 @@ export default function AuthPage() {
   };
 
   const showResend =
-    error.includes('not verified') ||
-    error.includes('verification link') ||
-    error.includes('no longer valid');
+    error.includes('not verified') || error.includes('verification link') || error.includes('no longer valid');
 
   return (
     <div className="authPage">
-      <AuthBackground />
-
       <div className="authShell animate-fade-in">
         <div className="authCard">
           <AuthHeader />
@@ -258,13 +260,16 @@ export default function AuthPage() {
                   onChange={(e) => setDisplayName(e.target.value)}
                   required
                   maxLength={24}
+                  autoComplete="off"
                 />
                 <input
                   type="email"
                   className="authInput"
-                  placeholder="Email (optional)"
+                  placeholder="@lancaster.ac.uk email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
                 />
                 <div className="authPasswordWrap">
                   <input
@@ -275,25 +280,19 @@ export default function AuthPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
+                    autoComplete="new-password"
                   />
-                  <button
-                    type="button"
-                    className="authEyeBtn"
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
+                  <button type="button" className="authEyeBtn" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
-
               {error && <div className="authError">{error}</div>}
-
               <button type="submit" className="authBtnPrimary" disabled={loading}>
                 {loading ? <Loader2 size={16} className="spin" /> : 'Sign Up'}
               </button>
               <button type="button" className="authBtnGhost" onClick={() => { setStep('welcome'); setError(''); }}>
-                Back to login
+                Back
               </button>
             </form>
           )}
@@ -302,6 +301,8 @@ export default function AuthPage() {
             <EmailStatusPanel
               emailAddress={email}
               onContinue={() => { setStep('login'); setError(''); }}
+              onResend={() => void handleResendVerification()}
+              resendLoading={loading}
             />
           )}
 
@@ -315,6 +316,7 @@ export default function AuthPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
                 <div className="authPasswordWrap">
                   <input
@@ -324,13 +326,9 @@ export default function AuthPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete="current-password"
                   />
-                  <button
-                    type="button"
-                    className="authEyeBtn"
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
+                  <button type="button" className="authEyeBtn" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -351,10 +349,7 @@ export default function AuthPage() {
               <button
                 type="button"
                 className="authBtnGhost"
-                onClick={() => {
-                  setResetEmail(email);
-                  setStep('forgot-password');
-                }}
+                onClick={() => { setResetEmail(email); setStep('forgot-password'); }}
               >
                 Forgot password?
               </button>
@@ -382,13 +377,14 @@ export default function AuthPage() {
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
               <button type="submit" className="authBtnPrimary" disabled={loading}>
                 {loading ? <Loader2 size={16} className="spin" /> : 'Send reset link'}
               </button>
               <button type="button" className="authBtnGhost" onClick={() => { setStep('login'); setError(''); }}>
-                Back to login
+                Back
               </button>
             </form>
           )}
