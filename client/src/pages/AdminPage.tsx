@@ -107,6 +107,15 @@ export default function AdminPage() {
 
   const canView = !!token && !!user?.isAdmin;
 
+  // Load current site config once on mount
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    fetch(`${apiUrl}/config`)
+      .then((r) => r.json())
+      .then((data) => { if (data.allowAllEmails) setEmailRestriction('any'); })
+      .catch(() => {});
+  }, []);
+
   const load = async () => {
     if (!token) return;
     setLoading(true);
@@ -503,8 +512,11 @@ export default function AdminPage() {
                       setSavingSettings(true);
                       setError('');
                       try {
-                        // For now, just show success - backend implementation can be added later
-                        await new Promise(r => setTimeout(r, 500));
+                        await api('/admin/config', {
+                          method: 'POST',
+                          token,
+                          body: { allowAllEmails: emailRestriction === 'any' },
+                        });
                         setSettingsSuccess(true);
                         setTimeout(() => setSettingsSuccess(false), 3000);
                       } catch (err) {

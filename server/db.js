@@ -183,6 +183,18 @@ db.exec(`
 
 addColumnIfMissing('message_reports', "report_type TEXT DEFAULT 'message'");
 
+// Site-wide settings key/value store
+db.exec(`
+  CREATE TABLE IF NOT EXISTS site_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER DEFAULT (unixepoch())
+  );
+`);
+
+// Seed defaults (INSERT OR IGNORE so we never overwrite existing values)
+db.prepare("INSERT OR IGNORE INTO site_settings (key, value) VALUES ('allow_all_emails', '0')").run();
+
 // Seed default rooms if they don't exist
 const roomCount = db.prepare('SELECT COUNT(*) as count FROM rooms').get();
 if (roomCount.count === 0) {

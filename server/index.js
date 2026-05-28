@@ -248,6 +248,24 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Public site config (used by client before auth, e.g. to decide which emails to allow)
+app.get('/api/config', (req, res) => {
+  const row = db.prepare("SELECT value FROM site_settings WHERE key = 'allow_all_emails'").get();
+  res.json({ allowAllEmails: row?.value === '1' });
+});
+
+// Admin: update site config
+app.post('/api/admin/config', authMiddleware, requireAdmin, (req, res) => {
+  const { allowAllEmails } = req.body;
+  if (typeof allowAllEmails !== 'boolean') {
+    return res.status(400).json({ error: 'allowAllEmails must be a boolean' });
+  }
+  db.prepare("INSERT OR REPLACE INTO site_settings (key, value, updated_at) VALUES ('allow_all_emails', ?, unixepoch())")
+    .run(allowAllEmails ? '1' : '0');
+  console.log(`[admin/config] allowAllEmails set to ${allowAllEmails} by ${req.userId}`);
+  res.json({ ok: true, allowAllEmails });
+});
+
 // Get all rooms
 app.get('/api/rooms', (req, res) => {
   const authHeader = req.headers.authorization;

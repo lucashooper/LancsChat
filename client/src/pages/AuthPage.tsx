@@ -83,6 +83,7 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
+  const [allowAllEmails, setAllowAllEmails] = useState(false);
 
   useEffect(() => {
     if (authMessage) {
@@ -92,10 +93,19 @@ export default function AuthPage() {
     }
   }, [authMessage, clearAuthMessage]);
 
-  const validateLancasterEmail = (val: string): string | null => {
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    fetch(`${apiUrl}/config`)
+      .then((r) => r.json())
+      .then((data) => { if (data.allowAllEmails) setAllowAllEmails(true); })
+      .catch(() => {}); // fail silently — default stays false (strict Lancaster-only)
+  }, []);
+
+  const validateEmail = (val: string): string | null => {
     const trimmed = val.toLowerCase().trim();
-    if (!trimmed) return 'Please enter your @lancaster.ac.uk email address.';
-    if (!trimmed.endsWith(`@${LANCASTER_DOMAIN}`)) {
+    if (!trimmed) return 'Please enter an email address.';
+    if (!trimmed.includes('@')) return 'Please enter a valid email address.';
+    if (!allowAllEmails && !trimmed.endsWith(`@${LANCASTER_DOMAIN}`)) {
       return `LancsChat is exclusive to Lancaster University. Please use your @${LANCASTER_DOMAIN} email.`;
     }
     return null;
@@ -110,7 +120,7 @@ export default function AuthPage() {
       return;
     }
 
-    const emailError = validateLancasterEmail(email);
+    const emailError = validateEmail(email);
     if (emailError) {
       setError(emailError);
       return;
@@ -265,7 +275,7 @@ export default function AuthPage() {
                 <input
                   type="email"
                   className="authInput"
-                  placeholder="@lancaster.ac.uk email"
+                  placeholder={allowAllEmails ? 'Email address' : '@lancaster.ac.uk email'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
