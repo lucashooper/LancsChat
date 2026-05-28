@@ -3,8 +3,10 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { isEmailVerified } from '../lib/authErrors';
 import { getAuthRedirectUrl } from '../lib/authRedirect';
-import { Eye, EyeOff, Loader2, Mail, Trash2 } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, Loader2, Mail, Trash2 } from 'lucide-react';
 import './AuthPage.css';
+
+const PENDING_EMAIL_KEY = 'lancschat_pending_email';
 
 type AuthStep = 'welcome' | 'register' | 'check-email' | 'login' | 'forgot-password' | 'reset-sent';
 
@@ -74,24 +76,33 @@ function EmailStatusPanel({
 }
 
 export default function AuthPage() {
-  const { authMessage, clearAuthMessage } = useAuth();
+  const { authMessage, authMessageType, clearAuthMessage } = useAuth();
   const [step, setStep] = useState<AuthStep>('welcome');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [confirmed, setConfirmed] = useState(false); // green "email confirmed" banner
   const [loading, setLoading] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [allowAllEmails, setAllowAllEmails] = useState(false);
 
   useEffect(() => {
-    if (authMessage) {
+    if (!authMessage) return;
+    if (authMessageType === 'confirmed') {
+      // Safe Links already confirmed their email — show success state + pre-fill email
+      const pending = sessionStorage.getItem(PENDING_EMAIL_KEY) || '';
+      if (pending) setEmail(pending);
+      setConfirmed(true);
+      setError('');
+    } else {
       setError(authMessage);
-      setStep('login');
-      clearAuthMessage();
+      setConfirmed(false);
     }
-  }, [authMessage, clearAuthMessage]);
+    setStep('login');
+    clearAuthMessage();
+  }, [authMessage, authMessageType, clearAuthMessage]);
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -143,6 +154,8 @@ export default function AuthPage() {
       });
 
       if (signUpError) throw signUpError;
+      // Save email so we can pre-fill it if Safe Links redirects them back with an error
+      sessionStorage.setItem(PENDING_EMAIL_KEY, signUpEmail);
       setStep('check-email');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -186,6 +199,10 @@ export default function AuthPage() {
           'Your email is not verified yet. Check your inbox (and junk folder), or tap below to resend.',
         );
       }
+
+      // Successful login — clean up pending email
+      sessionStorage.removeItem(PENDING_EMAIL_KEY);
+      setConfirmed(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
@@ -235,11 +252,12 @@ export default function AuthPage() {
   };
 
   const showResend =
-    error.includes('not verified') ||
-    error.includes('verification link') ||
-    error.includes('no longer valid') ||
-    error.includes('already be confirmed') ||
-    error.includes('Resend verification');
+    !confirmed && (
+      error.includes('not verified') ||
+      error.includes('verification link') ||
+      error.includes('no longer valid') ||
+      error.includes('Resend verification')
+    );
 
   return (
     <div className="authPage">
@@ -322,13 +340,20 @@ export default function AuthPage() {
 
           {step === 'login' && (
             <form onSubmit={handleLogin}>
+              {confirmed && (
+                <div className="authSuccess">
+                  <CheckCircle2 size={15} strokeWidth={2} style={{ flexShrink: 0 }} />
+                  Email confirmed — enter your password to get in
+                </div>
+              )}
+
               <div className="authFieldStack">
                 <input
                   type="text"
                   className="authInput"
                   placeholder="Email or username"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setConfirmed(false); }}
                   required
                   autoComplete="email"
                 />

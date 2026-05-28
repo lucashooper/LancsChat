@@ -27,16 +27,33 @@ export function clearPkceCode(): void {
 }
 
 /**
+ * When the otp_expired / access_denied error appears it almost always means Safe Links
+ * pre-scanned the email and confirmed the account already. Treat it as 'confirmed' so
+ * the UI can show a success state and prompt the user to sign in rather than showing
+ * a red error message.
+ */
+function classifyErrorCode(code: string, description: string): 'confirmed' | 'error' {
+  if (code === 'otp_expired') return 'confirmed';
+  if (code === 'access_denied') {
+    const d = description.toLowerCase();
+    if (d.includes('expired') || d.includes('invalid')) return 'confirmed';
+  }
+  return 'error';
+}
+
+/**
  * Parse Supabase auth errors from both the URL hash (#error=...) and query string (?error=...).
  * PKCE flow uses query params for errors; implicit flow uses hash fragments.
+ * Returns a `type` of 'confirmed' when Safe Links likely pre-consumed the token (email is
+ * already confirmed in Supabase), or 'error' for genuine failures.
  */
-export function parseAuthHashError(): { message: string; code: string } | null {
-  // Check query string first (PKCE flow)
+export function parseAuthHashError(): { message: string; code: string; type: 'confirmed' | 'error' } | null {
+  // Check query string first (PKCE flow redirects errors as ?error=...)
   const qp = new URLSearchParams(window.location.search);
   if (qp.get('error')) {
     const code = qp.get('error_code') || qp.get('error') || '';
     const description = qp.get('error_description')?.replace(/\+/g, ' ') || '';
-    return { code, message: mapAuthErrorCode(code, description) };
+    return { code, message: mapAuthErrorCode(code, description), type: classifyErrorCode(code, description) };
   }
 
   // Fall back to hash fragment (implicit flow / legacy)
@@ -47,7 +64,7 @@ export function parseAuthHashError(): { message: string; code: string } | null {
   if (!error) return null;
   const code = params.get('error_code') || error;
   const description = params.get('error_description')?.replace(/\+/g, ' ') || '';
-  return { code, message: mapAuthErrorCode(code, description) };
+  return { code, message: mapAuthErrorCode(code, description), type: classifyErrorCode(code, description) };
 }
 
 /** Remove auth error params from both the URL hash and query string. */
@@ -66,10 +83,10 @@ export function clearAuthHash(): void {
 export function mapAuthErrorCode(code: string, description?: string): string {
   switch (code) {
     case 'otp_expired':
-      return 'Your email may already be confirmed — try logging in directly. If that fails, use "Resend verification email" for a fresh link.';
+      return 'Email confirmed! Sign in below to get started.';
     case 'access_denied':
       if (description?.toLowerCase().includes('expired') || description?.toLowerCase().includes('invalid')) {
-        return 'Your email may already be confirmed — try logging in directly. If that fails, use "Resend verification email" for a fresh link.';
+        return 'Email confirmed! Sign in below to get started.';
       }
       return description || 'Access was denied. Please try logging in again.';
     case 'email_not_confirmed':

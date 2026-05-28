@@ -24,6 +24,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   loading: boolean;
   authMessage: string | null;
+  /** 'confirmed' = Safe Links already confirmed the email; 'error' = genuine failure */
+  authMessageType: 'confirmed' | 'error' | null;
   clearAuthMessage: () => void;
   refreshUser: () => Promise<void>;
   markIntroSeen: () => Promise<void>;
@@ -79,11 +81,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authMessageType, setAuthMessageType] = useState<'confirmed' | 'error' | null>(null);
   const hydratingRef = useRef(false);
 
-  const signOutWithMessage = async (message: string) => {
-    logAuth('warn', 'Signing out', { reason: message });
+  const signOutWithMessage = async (message: string, type: 'confirmed' | 'error' = 'error') => {
+    logAuth('warn', 'Signing out', { reason: message, type });
     setAuthMessage(message);
+    setAuthMessageType(type);
     setUser(null);
     setSession(null);
     await supabase.auth.signOut();
@@ -208,32 +212,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     const init = async () => {
+      logAuth('info', 'Auth init started', {
+        url: window.location.pathname + window.location.search,
+        hasHash: !!window.location.hash,
+      });
+
       // getSession() with PKCE flow automatically calls exchangeCodeForSession()
       // when ?code= is present, so we must call it BEFORE reading the URL ourselves.
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      const hadPkce = hasPkceCode();
+      const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
 
-      // After getSession processes everything, clean up the URL
-      if (hasPkceCode()) {
-        logAuth('info', 'PKCE code exchanged successfully', { hasSession: !!initialSession });
+      if (hadPkce) {
+        logAuth('info', 'PKCE code found — Supabase exchanged it for session', {
+          success: !!initialSession,
+          error: sessionError?.message,
+        });
         clearPkceCode();
       }
 
-      // Only treat hash as an error if Supabase didn't produce a valid session from it
-      const hashError = parseAuthHashError();
+      // Check for auth errors in URL (query string for PKCE flow, hash for implicit flow)
+      const urlError = parseAuthHashError();
       const hasAuthTokens = hashHasAuthTokens();
 
-      if (hashError && !initialSession && !hasAuthTokens) {
+      logAuth('info', 'URL scan complete', {
+        urlError: urlError ? { code: urlError.code, type: urlError.type } : null,
+        hasAuthTokens,
+        hasSession: !!initialSession,
+      });
+
+      // Only treat as error if there's no valid session and no in-progress auth tokens
+      if (urlError && !initialSession && !hasAuthTokens) {
         clearAuthHash();
-        logAuth('warn', 'Auth callback error — email link was already used or expired', {
-          code: hashError.code,
-          note: 'University Safe Links may have pre-confirmed the email. User can try logging in directly.',
-        });
-        // Don't call signOut() — there is no session to clear, and it emits
-        // a confusing SIGNED_OUT event that triggers the onAuthStateChange handler.
+
+        if (urlError.type === 'confirmed') {
+          // Safe Links pre-confirmed the email — not an error, just prompt sign-in
+          logAuth('info', 'Email confirmed via Safe Links pre-scan — prompting sign-in', {
+            code: urlError.code,
+          });
+        } else {
+          logAuth('warn', 'Auth callback error in URL', {
+            code: urlError.code,
+            message: urlError.message,
+          });
+        }
+
+        // Don't call signOut() — there is no session to clear
         if (mounted) {
           setSession(null);
           setUser(null);
-          setAuthMessage(hashError.message);
+          setAuthMessage(urlError.message);
+          setAuthMessageType(urlError.type);
           setLoading(false);
         }
         return;
@@ -242,6 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (initialSession?.user || hasAuthTokens) clearAuthHash();
 
       if (initialSession?.user) {
+        logAuth('info', 'Existing session found — hydrating profile', { userId: initialSession.user.id });
         setSession(initialSession);
         setLoading(true);
         await hydrateServerFlags(initialSession.access_token, buildUser(initialSession.user));
@@ -249,6 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      logAuth('info', 'No session — showing auth page');
       if (mounted) setLoading(false);
     };
 
@@ -289,7 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthMessage(null);
   };
 
-  const clearAuthMessage = () => setAuthMessage(null);
+  const clearAuthMessage = () => { setAuthMessage(null); setAuthMessageType(null); };
 
   const markIntroSeen = async () => {
     const token = session?.access_token;
@@ -307,7 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, session, token, logout, loading, authMessage, clearAuthMessage, refreshUser, markIntroSeen }}
+      value={{ user, session, token, logout, loading, authMessage, authMessageType, clearAuthMessage, refreshUser, markIntroSeen }}
     >
       {children}
     </AuthContext.Provider>
