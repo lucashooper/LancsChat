@@ -224,12 +224,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (hashError && !initialSession && !hasAuthTokens) {
         clearAuthHash();
-        logAuth('warn', 'Auth callback error in URL hash', { code: hashError.code });
-        setAuthMessage(hashError.message);
-        await supabase.auth.signOut();
+        logAuth('warn', 'Auth callback error — email link was already used or expired', {
+          code: hashError.code,
+          note: 'University Safe Links may have pre-confirmed the email. User can try logging in directly.',
+        });
+        // Don't call signOut() — there is no session to clear, and it emits
+        // a confusing SIGNED_OUT event that triggers the onAuthStateChange handler.
         if (mounted) {
           setSession(null);
           setUser(null);
+          setAuthMessage(hashError.message);
           setLoading(false);
         }
         return;

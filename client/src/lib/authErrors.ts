@@ -50,10 +50,10 @@ export function clearAuthHash(): void {
 export function mapAuthErrorCode(code: string, description?: string): string {
   switch (code) {
     case 'otp_expired':
-      return 'That verification link has expired or was already used. Log in and tap "Resend verification email" for a fresh one.';
+      return 'Your email may already be confirmed — try logging in directly. If that fails, use "Resend verification email" for a fresh link.';
     case 'access_denied':
       if (description?.toLowerCase().includes('expired') || description?.toLowerCase().includes('invalid')) {
-        return 'That verification link has expired or was already used. Log in and tap "Resend verification email" for a fresh one.';
+        return 'Your email may already be confirmed — try logging in directly. If that fails, use "Resend verification email" for a fresh link.';
       }
       return description || 'Access was denied. Please try logging in again.';
     case 'email_not_confirmed':
