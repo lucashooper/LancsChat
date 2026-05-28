@@ -248,6 +248,61 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Auto sign-in for Safe Links bypass: when Safe Links pre-confirms the email we generate
+// a server-side magic link and return it so the client can redirect without a password.
+// Rate-limited to one call per email per 90 seconds.
+const autoSignInRateLimit = new Map(); // email -> timestamp
+app.post('/api/auth/auto-signin', async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Auth service unavailable' });
+
+  const rawEmail = req.body?.email;
+  if (!rawEmail || typeof rawEmail !== 'string') {
+    return res.status(400).json({ error: 'email required' });
+  }
+  const email = rawEmail.toLowerCase().trim();
+
+  // Rate limit: one magic link per email per 90 seconds
+  const now = Date.now();
+  const last = autoSignInRateLimit.get(email) || 0;
+  if (now - last < 90_000) {
+    return res.status(429).json({ error: 'Please wait before requesting another sign-in link' });
+  }
+  autoSignInRateLimit.set(email, now);
+
+  try {
+    // First verify the user exists and their email is actually confirmed
+    const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    if (listErr) throw listErr;
+    const match = users?.find((u) => u.email?.toLowerCase() === email);
+    if (!match) {
+      console.warn('[auto-signin] No Supabase user found for', email);
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    if (!match.email_confirmed_at) {
+      console.warn('[auto-signin] Email not yet confirmed for', email);
+      return res.status(403).json({ error: 'Email not confirmed' });
+    }
+
+    // Generate a single-use magic link (requires service role key)
+    const clientUrl = process.env.CLIENT_URL || 'https://lancschat.lol';
+    const { data, error: linkErr } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+      options: { redirectTo: clientUrl },
+    });
+    if (linkErr || !data?.properties?.action_link) {
+      console.error('[auto-signin] generateLink failed:', linkErr?.message);
+      return res.status(500).json({ error: 'Could not generate sign-in link' });
+    }
+
+    console.log(`[auto-signin] Magic link generated for ${email} (user ${match.id})`);
+    return res.json({ magicLink: data.properties.action_link });
+  } catch (err) {
+    console.error('[auto-signin] Unexpected error:', err?.message || err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 // Public site config (used by client before auth, e.g. to decide which emails to allow)
 app.get('/api/config', (req, res) => {
   const row = db.prepare("SELECT value FROM site_settings WHERE key = 'allow_all_emails'").get();

@@ -84,6 +84,7 @@ export default function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [confirmed, setConfirmed] = useState(false); // green "email confirmed" banner
+  const [autoSigningIn, setAutoSigningIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [allowAllEmails, setAllowAllEmails] = useState(false);
@@ -91,7 +92,7 @@ export default function AuthPage() {
   useEffect(() => {
     if (!authMessage) return;
     if (authMessageType === 'confirmed') {
-      // Safe Links already confirmed their email — show success state + pre-fill email
+      // Safe Links already confirmed their email — attempt auto sign-in via server magic link
       const pending = sessionStorage.getItem(PENDING_EMAIL_KEY) || '';
       if (pending) setEmail(pending);
       setConfirmed(true);
@@ -103,6 +104,27 @@ export default function AuthPage() {
     setStep('login');
     clearAuthMessage();
   }, [authMessage, authMessageType, clearAuthMessage]);
+
+  // When we know the email is confirmed, silently generate a magic link and redirect
+  useEffect(() => {
+    if (!confirmed || !email) return;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    setAutoSigningIn(true);
+    fetch(`${apiUrl}/auth/auto-signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then(({ magicLink }: { magicLink: string }) => {
+        if (magicLink) window.location.href = magicLink;
+        else setAutoSigningIn(false);
+      })
+      .catch(() => {
+        // Server couldn't generate a magic link — fall back to manual password form
+        setAutoSigningIn(false);
+      });
+  }, [confirmed, email]);
 
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
@@ -340,10 +362,16 @@ export default function AuthPage() {
 
           {step === 'login' && (
             <form onSubmit={handleLogin}>
-              {confirmed && (
+              {autoSigningIn && (
+                <div className="authSuccess">
+                  <Loader2 size={15} strokeWidth={2} style={{ flexShrink: 0 }} className="spin" />
+                  Email confirmed — signing you in…
+                </div>
+              )}
+              {confirmed && !autoSigningIn && (
                 <div className="authSuccess">
                   <CheckCircle2 size={15} strokeWidth={2} style={{ flexShrink: 0 }} />
-                  Email confirmed — enter your password to get in
+                  Email confirmed — enter your password to continue
                 </div>
               )}
 
