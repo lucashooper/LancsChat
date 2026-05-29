@@ -36,19 +36,16 @@ cd ../client && npm install
 
 ### 2. Configure environment
 
-**`server/.env`**:
-```env
-PORT=3001
-CLIENT_URL=http://localhost:5174
-SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+**`server/.env`** — copy from `server/.env.example`:
+
+```bash
+cp server/.env.example server/.env
 ```
 
-**`client/.env`** (create this file):
-```env
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_URL=http://localhost:3001/api
-VITE_WS_URL=http://localhost:3001
+**`client/.env.local`** — copy from `client/.env.example`:
+
+```bash
+cp client/.env.example client/.env.local
 ```
 
 ### 3. Run
