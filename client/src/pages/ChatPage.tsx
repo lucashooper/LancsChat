@@ -68,6 +68,7 @@ interface OnlineUser {
   displayName: string;
   avatarColor: string;
   avatarUrl: string | null;
+  isPresenceBoost?: boolean;
 }
 
 type NavTab = 'rooms' | 'dms' | 'settings';
@@ -1151,7 +1152,7 @@ export default function ChatPage() {
                     {onlineUser.displayName}
                     {isMe && <span className="onlineYouTag">(you)</span>}
                   </span>
-                  {!isMe && (
+                  {!isMe && !onlineUser.isPresenceBoost && (
                     <button
                       className="onlineDmBtn"
                       title={`Message ${onlineUser.displayName}`}

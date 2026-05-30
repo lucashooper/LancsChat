@@ -13,11 +13,34 @@ type AuthStep = 'welcome' | 'register' | 'check-email' | 'login' | 'forgot-passw
 const LANCASTER_DOMAIN = 'lancaster.ac.uk';
 
 function AuthHeader() {
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const fetchCount = () => {
+      fetch(`${apiUrl}/online`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (typeof data?.count === 'number') setOnlineCount(data.count);
+        })
+        .catch(() => {});
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <>
       <img src="/Lancaster-Uni-Icon-1.png" alt="Lancaster University" className="authLogo" />
       <h1 className="authTitle">LancsChat</h1>
       <p className="authSubtitle">Exclusive to Lancaster University students</p>
+      {onlineCount !== null && onlineCount > 0 && (
+        <div className="authOnlineBadge">
+          <span className="authOnlineDot" aria-hidden />
+          {onlineCount} online rn
+        </div>
+      )}
     </>
   );
 }

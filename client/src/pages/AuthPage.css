@@ -72,9 +72,39 @@
   color: #6b6b6b;
   font-size: 14px;
   text-align: center;
-  margin: 0 0 32px;
+  margin: 0 0 16px;
   line-height: 20px;
   letter-spacing: 0.1px;
+}
+
+.authOnlineBadge {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 7px;
+  margin: 0 auto 28px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  color: #4ade80;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.authOnlineDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+  animation: authOnlinePulse 2s ease-in-out infinite;
+}
+
+@keyframes authOnlinePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.65; transform: scale(0.92); }
 }
 
 /* ── Inputs ─────────────────────────────────────────────────────────── */

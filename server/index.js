@@ -8,6 +8,7 @@ const { v4: uuidv4 } = require('uuid');
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 const db = require('./db');
+const { getBoostedOnlineUsers, startPresenceRotation } = require('./presenceBoost');
 
 // Initialize Resend for sending emails
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -35,17 +36,50 @@ const ADMIN_EMAIL = 'l.j.hooper@lancaster.ac.uk';
 const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
 const REPORT_REASONS = ['spam', 'harassment', 'inappropriate', 'other'];
 
+/** Allowed browser origins — CLIENT_URL can be comma-separated for production + staging. */
+function getAllowedOrigins() {
+  const origins = new Set([
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ]);
+  const clientUrl = process.env.CLIENT_URL;
+  if (clientUrl) {
+    clientUrl.split(',').forEach((url) => {
+      const trimmed = url.trim();
+      if (trimmed) origins.add(trimmed);
+    });
+  } else {
+    origins.add('http://localhost:5174');
+  }
+  return [...origins];
+}
+
+function corsOriginCheck(origin, callback) {
+  // Non-browser clients (curl, mobile apps) may omit Origin
+  if (!origin || getAllowedOrigins().includes(origin)) {
+    callback(null, true);
+  } else {
+    console.warn('[CORS] Blocked origin:', origin, '| allowed:', getAllowedOrigins().join(', '));
+    callback(new Error('Not allowed by CORS'));
+  }
+}
+
+const corsOptions = { origin: corsOriginCheck, credentials: true };
+
 // In-memory rate limit state: 5 messages / 10s, cooldown 10s
 const rateLimitState = new Map();
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5174',
+    origin: getAllowedOrigins(),
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5174' }));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Decode Supabase JWT (we trust the token since it comes from Supabase)
@@ -1126,13 +1160,15 @@ app.post('/api/admin/unban-requests/:requestId/deny', authMiddleware, requireAdm
 const onlineUsers = new Map();
 
 function broadcastOnlineUsers() {
-  const users = Array.from(onlineUsers.values());
-  io.emit('online_users', users);
+  const real = Array.from(onlineUsers.values());
+  io.emit('online_users', getBoostedOnlineUsers(real));
 }
 
-// Get online users
+// Get online users (includes ambient presence for launch)
 app.get('/api/online', (req, res) => {
-  res.json({ count: onlineUsers.size, users: Array.from(onlineUsers.values()) });
+  const real = Array.from(onlineUsers.values());
+  const users = getBoostedOnlineUsers(real);
+  res.json({ count: users.length, users });
 });
 
 // Socket.IO authentication middleware
@@ -1556,5 +1592,6 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
+  startPresenceRotation(broadcastOnlineUsers);
   console.log(`\n🚀 LancsChat server running on http://localhost:${PORT}\n`);
 });
