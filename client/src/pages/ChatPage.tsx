@@ -73,6 +73,8 @@ interface OnlineUser {
 
 type NavTab = 'rooms' | 'dms' | 'settings';
 
+const LAST_ROOM_KEY = 'lancschat_last_room';
+
 export default function ChatPage() {
   const { user, token, logout } = useAuth();
   const { socket, connected } = useSocket();
@@ -109,11 +111,14 @@ export default function ChatPage() {
   const [showPinnedModal, setShowPinnedModal] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [showOnlinePanel, setShowOnlinePanel] = useState(true);
+  const [messagesLoadError, setMessagesLoadError] = useState('');
+  const [roomsLoadError, setRoomsLoadError] = useState('');
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const hasNoEmail = user?.email?.includes('@noemail.lancschat.lol') || !user?.email;
 
   const [reactionMap, setReactionMap] = useState<Record<string, ReactionSummary[]>>({});
   const visibleMessageIdsRef = useRef<Set<string>>(new Set());
+  const autoRoomRestoredRef = useRef(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -139,10 +144,52 @@ export default function ChatPage() {
     return () => window.clearInterval(id);
   }, [cooldownUntil]);
 
+  const loadRoomMessages = useCallback(async (roomId: string) => {
+    setMessagesLoadError('');
+    try {
+      const msgs = (await api(`/rooms/${roomId}/messages`, { token })) as Message[];
+      setMessages(msgs);
+      console.log('[Chat] Loaded message history', { roomId, count: msgs.length });
+      setTimeout(scrollToBottom, 100);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not load messages';
+      console.error('[Chat] Failed to load message history', { roomId, error: msg });
+      setMessagesLoadError(msg);
+    }
+  }, [token, scrollToBottom]);
+
   // Load rooms
   useEffect(() => {
-    api('/rooms', { token }).then(setRooms).catch(console.error);
+    if (!token) return;
+    setRoomsLoadError('');
+    api('/rooms', { token })
+      .then((data) => {
+        const list = data as Room[];
+        setRooms(list);
+        console.log('[Chat] Loaded rooms', { count: list.length });
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : 'Could not load rooms';
+        console.error('[Chat] Failed to load rooms', { error: msg });
+        setRoomsLoadError(msg);
+      });
   }, [token]);
+
+  // Restore last-open room after refresh
+  useEffect(() => {
+    if (!token || rooms.length === 0 || autoRoomRestoredRef.current) return;
+    autoRoomRestoredRef.current = true;
+    const lastId = sessionStorage.getItem(LAST_ROOM_KEY);
+    const room =
+      rooms.find((r) => r.id === lastId) ||
+      rooms.find((r) => r.id === 'general') ||
+      rooms[0];
+    if (room) {
+      setSelectedRoom(room);
+      setChatOpen(true);
+      sessionStorage.setItem(LAST_ROOM_KEY, room.id);
+    }
+  }, [token, rooms]);
 
   // Load DMs
   useEffect(() => {
@@ -151,25 +198,18 @@ export default function ChatPage() {
     }
   }, [activeTab, token]);
 
-  // Join a room via socket
+  // Join a room via socket + load persisted history
   useEffect(() => {
     if (!socket || !selectedRoom) return;
 
     socket.emit('join_room', selectedRoom.id);
-
-    api(`/rooms/${selectedRoom.id}/messages`, { token })
-      .then((msgs) => {
-        setMessages(msgs);
-        setTimeout(scrollToBottom, 100);
-      })
-      .catch(console.error);
-
+    void loadRoomMessages(selectedRoom.id);
     void loadPinnedMessages(selectedRoom.id);
 
     return () => {
       socket.emit('leave_room', selectedRoom.id);
     };
-  }, [socket, selectedRoom, token, scrollToBottom]);
+  }, [socket, selectedRoom, loadRoomMessages]);
 
   // Load DM messages
   useEffect(() => {
@@ -177,10 +217,16 @@ export default function ChatPage() {
 
     api(`/dms/${selectedDM.other_id}/messages`, { token })
       .then((msgs) => {
-        setDmMessages(msgs);
+        setDmMessages(msgs as Message[]);
+        console.log('[Chat] Loaded DM history', { userId: selectedDM.other_id, count: (msgs as Message[]).length });
         setTimeout(scrollToBottom, 100);
       })
-      .catch(console.error);
+      .catch((err) => {
+        console.error('[Chat] Failed to load DM history', {
+          userId: selectedDM.other_id,
+          error: err instanceof Error ? err.message : err,
+        });
+      });
   }, [selectedDM, token, scrollToBottom]);
 
   // Socket listeners
@@ -435,12 +481,8 @@ export default function ChatPage() {
     setSelectedRoom(room);
     setChatOpen(true);
     setMessages([]);
-    void api(`/rooms/${room.id}/messages`, { token })
-      .then((msgs) => {
-        setMessages(msgs);
-        setTimeout(scrollToBottom, 100);
-      })
-      .catch(console.error);
+    setMessagesLoadError('');
+    sessionStorage.setItem(LAST_ROOM_KEY, room.id);
   };
 
   const openDM = (convo: DMConversation) => {
@@ -760,6 +802,9 @@ export default function ChatPage() {
         <div className="panelList">
           {activeTab === 'rooms' && (
             <div className="listStack">
+              {roomsLoadError && (
+                <p className="chatLoadError chatLoadErrorCompact">{roomsLoadError}</p>
+              )}
               {rooms.map((room) => (
                 <button
                   key={room.id}
@@ -897,6 +942,20 @@ export default function ChatPage() {
 
             {/* Messages */}
             <div className="messages">
+              {messagesLoadError && activeTab === 'rooms' && (
+                <div className="chatLoadError">
+                  Couldn&apos;t load chat history — {messagesLoadError}
+                  {selectedRoom && (
+                    <button
+                      type="button"
+                      className="chatLoadErrorRetry"
+                      onClick={() => void loadRoomMessages(selectedRoom.id)}
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="msgList">
               {currentMessages.filter(msg => !msg.is_deleted).map((msg, i) => {
                 const filteredMessages = currentMessages.filter(m => !m.is_deleted);

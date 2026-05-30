@@ -763,27 +763,39 @@ app.get('/api/rooms/:roomId/messages', authMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const before = req.query.before;
 
-  let query = `
-    SELECT m.id, m.content, m.created_at, m.sender_id,
-           m.reply_to_message_id, m.is_deleted,
-           u.display_name, u.avatar_color, u.avatar_url, u.is_admin
-    FROM messages m
-    JOIN users u ON m.sender_id = u.id
-    WHERE m.room_id = ? AND m.message_type = 'room'
-  `;
-  const params = [roomId];
+  try {
+    const room = db.prepare('SELECT id FROM rooms WHERE id = ?').get(roomId);
+    if (!room) {
+      console.warn(`[/api/rooms/${roomId}/messages] Room not found`);
+      return res.status(404).json({ error: 'Room not found' });
+    }
 
-  if (before) {
-    query += ' AND m.created_at < ?';
-    params.push(parseInt(before));
+    let query = `
+      SELECT m.id, m.content, m.created_at, m.sender_id,
+             m.reply_to_message_id, m.is_deleted,
+             u.display_name, u.avatar_color, u.avatar_url, u.is_admin
+      FROM messages m
+      JOIN users u ON m.sender_id = u.id
+      WHERE m.room_id = ? AND m.message_type = 'room'
+    `;
+    const params = [roomId];
+
+    if (before) {
+      query += ' AND m.created_at < ?';
+      params.push(parseInt(before));
+    }
+
+    query += ' ORDER BY m.created_at DESC LIMIT ?';
+    params.push(limit);
+
+    const messages = db.prepare(query).all(...params);
+    const enriched = attachRepliesAndReactions(messages.reverse(), req.userId);
+    console.log(`[/api/rooms/${roomId}/messages] Returned ${enriched.length} messages`);
+    res.json(enriched);
+  } catch (err) {
+    console.error(`[/api/rooms/${roomId}/messages] Failed:`, err.message);
+    res.status(500).json({ error: 'Could not load messages' });
   }
-
-  query += ' ORDER BY m.created_at DESC LIMIT ?';
-  params.push(limit);
-
-  const messages = db.prepare(query).all(...params);
-  const enriched = attachRepliesAndReactions(messages.reverse(), req.userId);
-  res.json(enriched);
 });
 
 // Get pinned messages for a room
@@ -956,9 +968,8 @@ app.get('/api/admin/stats', authMiddleware, requireAdmin, (req, res) => {
   let dbSizeMB = 0;
   try {
     const fs = require('fs');
-    const dbPath = require('path').join(__dirname, 'lancschat.db');
-    if (fs.existsSync(dbPath)) {
-      dbSizeMB = fs.statSync(dbPath).size / (1024 * 1024);
+    if (fs.existsSync(db.dbPath)) {
+      dbSizeMB = fs.statSync(db.dbPath).size / (1024 * 1024);
     }
   } catch (err) {
     console.error('Failed to get DB size:', err);
@@ -1415,10 +1426,18 @@ io.on('connection', (socket) => {
       }
     }
 
-    db.prepare(`
-      INSERT INTO messages (id, room_id, sender_id, content, message_type, created_at, reply_to_message_id)
-      VALUES (?, ?, ?, ?, 'room', ?, ?)
-    `).run(messageId, roomId, socket.user.id, content.trim(), now, replyTo ? replyTo.id : null);
+    try {
+      db.prepare(`
+        INSERT INTO messages (id, room_id, sender_id, content, message_type, created_at, reply_to_message_id)
+        VALUES (?, ?, ?, ?, 'room', ?, ?)
+      `).run(messageId, roomId, socket.user.id, content.trim(), now, replyTo ? replyTo.id : null);
+    } catch (err) {
+      console.error('[room_message] Failed to save message:', err.message, { roomId, userId: socket.user.id });
+      socket.emit('send_error', { code: 'SAVE_FAILED', message: 'Message could not be saved. Please try again.' });
+      return;
+    }
+
+    console.log(`[room_message] Saved ${messageId} in room ${roomId} by ${socket.user.display_name}`);
 
     const message = {
       id: messageId,
@@ -1593,5 +1612,18 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   startPresenceRotation(broadcastOnlineUsers);
+  try {
+    const stats = db.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM messages WHERE message_type = 'room') AS roomMessages,
+        (SELECT COUNT(*) FROM users) AS users
+    `).get();
+    console.log(`[DB] Stats — ${stats.roomMessages} room messages, ${stats.users} users`);
+    if (process.env.RENDER && !process.env.DATABASE_PATH) {
+      console.warn('[DB] ⚠️  DATABASE_PATH not set on Render — chat history will be lost on restart/deploy. Mount a persistent disk and set DATABASE_PATH=/var/data/lancschat.db');
+    }
+  } catch (err) {
+    console.error('[DB] Failed to read stats:', err.message);
+  }
   console.log(`\n🚀 LancsChat server running on http://localhost:${PORT}\n`);
 });

@@ -1,7 +1,29 @@
 const Database = require('better-sqlite3');
+const fs = require('fs');
 const path = require('path');
 
-const db = new Database(path.join(__dirname, 'lancschat.db'));
+/** Single source of truth for the SQLite file path (used by all server scripts via require('./db')). */
+function resolveDatabasePath() {
+  const configured = process.env.DATABASE_PATH?.trim();
+  if (configured) {
+    return path.isAbsolute(configured)
+      ? configured
+      : path.resolve(__dirname, configured);
+  }
+  return path.resolve(__dirname, 'lancschat.db');
+}
+
+const dbPath = resolveDatabasePath();
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+const db = new Database(dbPath);
+db.dbPath = dbPath;
+db.resolveDatabasePath = resolveDatabasePath;
+
+console.log(`[DB] SQLite database: ${dbPath}`);
 
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');

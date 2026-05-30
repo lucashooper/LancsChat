@@ -1513,6 +1513,32 @@
   opacity: 0.7;
 }
 
+.chatLoadError {
+  margin: 12px 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chatLoadErrorCompact {
+  margin: 8px 12px;
+}
+
+.chatLoadErrorRetry {
+  margin-left: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #93c5fd;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .onlineToggleBtn {
   position: absolute;
   right: 12px;

@@ -23,10 +23,20 @@ export async function api(endpoint: string, options: RequestOptions = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const data = await res.json();
+  let data: Record<string, unknown> = {};
+  const text = await res.text();
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      throw new Error(`Invalid response from server (${res.status})`);
+    }
+  }
 
   if (!res.ok) {
-    throw new Error(data.error || 'Something went wrong');
+    const msg = typeof data.error === 'string' ? data.error : `Request failed (${res.status})`;
+    console.error(`[API] ${method} ${endpoint} → ${res.status}:`, msg);
+    throw new Error(msg);
   }
 
   return data;
