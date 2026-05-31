@@ -217,6 +217,20 @@ db.exec(`
 // Seed defaults (INSERT OR IGNORE so we never overwrite existing values)
 db.prepare("INSERT OR IGNORE INTO site_settings (key, value) VALUES ('allow_all_emails', '0')").run();
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_warnings (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    warned_by TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    message_id TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (warned_by) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_admin_warnings_user ON admin_warnings(user_id, created_at);
+`);
+
 // Seed default rooms if they don't exist
 const roomCount = db.prepare('SELECT COUNT(*) as count FROM rooms').get();
 if (roomCount.count === 0) {

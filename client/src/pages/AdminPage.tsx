@@ -16,6 +16,7 @@ type AdminUserRow = {
   isBanned: boolean;
   bannedAt: number | null;
   bannedReason: string | null;
+  warnCount: number;
   createdAt: number;
   lastSeen: number;
 };
@@ -178,6 +179,14 @@ export default function AdminPage() {
     await load();
   };
 
+  const warnUser = async (userId: string, displayName: string) => {
+    if (!token) return;
+    const reason = window.prompt(`Warning for ${displayName}`, 'Please follow community guidelines')?.trim();
+    if (!reason) return;
+    await api('/admin/warn', { token, method: 'POST', body: { userId, reason } });
+    await load();
+  };
+
   const resolveReport = async (reportId: string) => {
     if (!token) return;
     await api(`/admin/reports/${reportId}/resolve`, { token, method: 'POST' });
@@ -297,9 +306,22 @@ export default function AdminPage() {
                         ) : (
                           <span className="adminBadge adminBadgeOk">Active</span>
                         )}
+                        {u.warnCount > 0 && (
+                          <span className="adminBadge adminBadgeWarn" style={{ marginLeft: 6 }}>
+                            {u.warnCount} warn{u.warnCount === 1 ? '' : 's'}
+                          </span>
+                        )}
                       </div>
                       <div className="adminMuted">{formatTs(u.lastSeen)}</div>
                       <div className="adminActions">
+                        {!u.isBanned && !u.isAdmin && (
+                          <button
+                            className="adminBtn adminBtnWarn"
+                            onClick={() => void warnUser(u.id, u.displayName)}
+                          >
+                            Warn
+                          </button>
+                        )}
                         {!u.isBanned ? (
                           <button
                             className="adminBtn adminBtnBad"

@@ -152,7 +152,7 @@ LancsChat/
 
 ## Admin
 
-The admin email is configured in `server/index.js` as `ADMIN_EMAIL`. The first user to register with this email gets admin privileges. Admins can:
+The admin emails are configured in `server/index.js` as `ADMIN_EMAILS`. Any account registered with one of these emails gets admin automatically (including after delete + re-signup). Admins can:
 - Pin/unpin messages
 - Delete any message
 - Ban/unban users

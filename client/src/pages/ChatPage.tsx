@@ -6,7 +6,8 @@ import { api } from '../api';
 import { MAX_MESSAGE_LENGTH } from '../lib/limits';
 import {
   Hash, LogOut, Users,
-  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin, Eye, EyeOff, ArrowLeft
+  MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin, Eye, EyeOff, ArrowLeft,
+  Trash2, AlertTriangle, Ban,
 } from 'lucide-react';
 import SettingsPage from './SettingsPage';
 import { supabase } from '../lib/supabase';
@@ -114,6 +115,15 @@ export default function ChatPage() {
   const [showOnlinePanel, setShowOnlinePanel] = useState(true);
   const [messagesLoadError, setMessagesLoadError] = useState('');
   const [roomsLoadError, setRoomsLoadError] = useState('');
+  const [modNotice, setModNotice] = useState<string | null>(null);
+  const [modAction, setModAction] = useState<{
+    type: 'ban' | 'warn';
+    userId: string;
+    displayName: string;
+    messageId?: string;
+  } | null>(null);
+  const [modReason, setModReason] = useState('');
+  const [modSubmitting, setModSubmitting] = useState(false);
   const [emailBannerDismissed, setEmailBannerDismissed] = useState(false);
   const hasNoEmail = user?.email?.includes('@noemail.lancschat.lol') || !user?.email;
 
@@ -329,6 +339,13 @@ export default function ChatPage() {
     socket.on('message_unpinned', handleMessageUnpinned);
     socket.on('online_users', handleOnlineUsers);
 
+    const handleModerationNotice = (data: { type: string; reason: string; from?: string }) => {
+      const prefix = data.from ? `${data.from}: ` : '';
+      setModNotice(`${prefix}${data.reason}`);
+      window.setTimeout(() => setModNotice(null), 12000);
+    };
+    socket.on('moderation_notice', handleModerationNotice);
+
     return () => {
       socket.off('new_message', handleNewMessage);
       socket.off('new_dm', handleNewDM);
@@ -339,8 +356,9 @@ export default function ChatPage() {
       socket.off('message_pinned', handleMessagePinned);
       socket.off('message_unpinned', handleMessageUnpinned);
       socket.off('online_users', handleOnlineUsers);
+      socket.off('moderation_notice', handleModerationNotice);
     };
-  }, [socket, selectedRoom, selectedDM, scrollToBottom]);
+  }, [socket, selectedRoom, selectedDM, scrollToBottom, token]);
 
   useEffect(() => {
     const onDown = () => {
@@ -475,6 +493,47 @@ export default function ChatPage() {
   const deleteMessage = (messageId: string) => {
     if (!socket) return;
     socket.emit('delete_message', { messageId });
+  };
+
+  const openModAction = (type: 'ban' | 'warn', msg: Message) => {
+    setModAction({
+      type,
+      userId: msg.sender_id,
+      displayName: msg.display_name,
+      messageId: msg.id,
+    });
+    setModReason(type === 'ban' ? 'Violation of community rules' : 'Please follow community guidelines');
+  };
+
+  const submitModAction = async () => {
+    if (!modAction || !token || !modReason.trim()) return;
+    setModSubmitting(true);
+    try {
+      if (modAction.type === 'ban') {
+        await api('/admin/ban', {
+          token,
+          method: 'POST',
+          body: { userId: modAction.userId, reason: modReason.trim() },
+        });
+        if (modAction.messageId) deleteMessage(modAction.messageId);
+      } else {
+        await api('/admin/warn', {
+          token,
+          method: 'POST',
+          body: {
+            userId: modAction.userId,
+            reason: modReason.trim(),
+            messageId: modAction.messageId,
+          },
+        });
+      }
+      setModAction(null);
+      setModReason('');
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Moderation action failed');
+    } finally {
+      setModSubmitting(false);
+    }
   };
 
   const submitReport = () => {
@@ -946,6 +1005,16 @@ export default function ChatPage() {
               )}
             </div>
 
+            {modNotice && (
+              <div className="modNoticeBanner">
+                <AlertTriangle size={16} />
+                <span><strong>Moderator warning:</strong> {modNotice}</span>
+                <button type="button" className="modNoticeDismiss" onClick={() => setModNotice(null)} aria-label="Dismiss">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
             {/* Messages */}
             <div className="messages">
               {messagesLoadError && activeTab === 'rooms' && (
@@ -1046,6 +1115,34 @@ export default function ChatPage() {
                           >
                             <Smile className="msgActionIcon" />
                           </button>
+                          {user?.isAdmin && !isOwn && (
+                            <>
+                              <button
+                                className="msgActionBtn msgActionBtnAdminDanger"
+                                type="button"
+                                onClick={() => deleteMessage(msg.id)}
+                                title="Delete message"
+                              >
+                                <Trash2 className="msgActionIcon" />
+                              </button>
+                              <button
+                                className="msgActionBtn msgActionBtnAdmin"
+                                type="button"
+                                onClick={() => openModAction('warn', msg)}
+                                title="Warn user"
+                              >
+                                <AlertTriangle className="msgActionIcon" />
+                              </button>
+                              <button
+                                className="msgActionBtn msgActionBtnAdminDanger"
+                                type="button"
+                                onClick={() => openModAction('ban', msg)}
+                                title="Ban user"
+                              >
+                                <Ban className="msgActionIcon" />
+                              </button>
+                            </>
+                          )}
                           <button
                             className="msgActionBtn"
                             type="button"
@@ -1319,13 +1416,23 @@ export default function ChatPage() {
                 className="moreItem danger"
                 type="button"
                 onClick={() => {
-                  if (!token) return;
-                  const reason = window.prompt('Ban reason', 'Violation of community rules') || 'Banned by admin';
-                  void api('/admin/ban', { token, method: 'POST', body: { userId: msg.sender_id, reason } });
+                  openModAction('ban', msg);
                   setMoreMenu(null);
                 }}
               >
                 Ban user (admin)
+              </button>
+            )}
+            {canAdminBan && (
+              <button
+                className="moreItem"
+                type="button"
+                onClick={() => {
+                  openModAction('warn', msg);
+                  setMoreMenu(null);
+                }}
+              >
+                Warn user (admin)
               </button>
             )}
           </div>
@@ -1385,6 +1492,38 @@ export default function ChatPage() {
             <div className="modalActions">
               <button className="modalBtn" onClick={() => setReportModal(null)}>Cancel</button>
               <button className="modalBtn primary" onClick={submitReport}>Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modAction && (
+        <div className="modalOverlay" onMouseDown={() => !modSubmitting && setModAction(null)}>
+          <div className="modalCard" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modalTitle">
+              {modAction.type === 'ban' ? 'Ban user' : 'Warn user'} — {modAction.displayName}
+            </div>
+            <div className="modalDesc">
+              {modAction.type === 'ban'
+                ? 'They will be disconnected immediately and cannot log back in.'
+                : 'They will see this warning in chat. Consider warn before ban (Discord-style).'}
+            </div>
+            <textarea
+              className="modalTextarea"
+              rows={3}
+              value={modReason}
+              onChange={(e) => setModReason(e.target.value)}
+              placeholder="Reason..."
+            />
+            <div className="modalActions">
+              <button className="modalBtn" disabled={modSubmitting} onClick={() => setModAction(null)}>Cancel</button>
+              <button
+                className={`modalBtn ${modAction.type === 'ban' ? 'danger' : 'primary'}`}
+                disabled={modSubmitting || !modReason.trim()}
+                onClick={() => void submitModAction()}
+              >
+                {modSubmitting ? 'Saving...' : modAction.type === 'ban' ? 'Ban user' : 'Send warning'}
+              </button>
             </div>
           </div>
         </div>

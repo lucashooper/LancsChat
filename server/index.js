@@ -32,7 +32,25 @@ const AVATAR_COLORS = [
   '#F0B27A', '#82E0AA', '#F1948A', '#AED6F1', '#D7BDE2',
 ];
 
-const ADMIN_EMAIL = 'l.j.hooper@lancaster.ac.uk';
+/** Emails that automatically receive admin on signup (and on server sync). */
+const ADMIN_EMAILS = [
+  'l.j.hooper@lancaster.ac.uk',
+  'lucashooper100@outlook.com',
+].map((e) => e.toLowerCase());
+
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.includes((email || '').toLowerCase());
+}
+
+function syncAdminEmails() {
+  const stmt = db.prepare('UPDATE users SET is_admin = 1 WHERE lower(email) = ?');
+  for (const email of ADMIN_EMAILS) {
+    const result = stmt.run(email);
+    if (result.changes > 0) {
+      console.log(`[admin] Granted admin to ${email}`);
+    }
+  }
+}
 
 const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
 const REPORT_REASONS = ['spam', 'harassment', 'inappropriate', 'other'];
@@ -123,7 +141,7 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
     const name = displayName || 'Anonymous';
     const color = avatarColor || AVATAR_COLORS[supabaseUserId.charCodeAt(0) % AVATAR_COLORS.length];
     const safeEmail = (email || '').toLowerCase() || `${supabaseUserId}@unknown.local`;
-    const isAdmin = safeEmail === ADMIN_EMAIL ? 1 : 0;
+    const isAdmin = isAdminEmail(safeEmail) ? 1 : 0;
     db.prepare(`
       INSERT INTO users (id, email, password_hash, display_name, avatar_color, avatar_url, is_verified, is_admin)
       VALUES (?, ?, '', ?, ?, ?, 0, ?)
@@ -151,7 +169,7 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
       db.prepare('UPDATE users SET email = ? WHERE id = ?').run(safeEmail, supabaseUserId);
       user.email = safeEmail;
     }
-    if (user.email && user.email.toLowerCase() === ADMIN_EMAIL && !user.is_admin) {
+    if (isAdminEmail(user.email) && !user.is_admin) {
       db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(supabaseUserId);
       user.is_admin = 1;
     }
@@ -1016,7 +1034,13 @@ app.get('/api/admin/stats', authMiddleware, requireAdmin, (req, res) => {
 });
 
 app.get('/api/admin/users', authMiddleware, requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, email, display_name, avatar_color, is_admin, is_banned, banned_at, banned_reason, created_at, last_seen FROM users ORDER BY created_at DESC').all();
+  const users = db.prepare(`
+    SELECT u.id, u.email, u.display_name, u.avatar_color, u.is_admin, u.is_banned, u.banned_at, u.banned_reason,
+           u.created_at, u.last_seen,
+           (SELECT COUNT(*) FROM admin_warnings w WHERE w.user_id = u.id) AS warn_count
+    FROM users u
+    ORDER BY u.created_at DESC
+  `).all();
   res.json(users.map((u) => ({
     id: u.id,
     email: u.email,
@@ -1026,9 +1050,43 @@ app.get('/api/admin/users', authMiddleware, requireAdmin, (req, res) => {
     isBanned: !!u.is_banned,
     bannedAt: u.banned_at || null,
     bannedReason: u.banned_reason || null,
+    warnCount: u.warn_count || 0,
     createdAt: u.created_at,
     lastSeen: u.last_seen,
   })));
+});
+
+app.post('/api/admin/warn', authMiddleware, requireAdmin, (req, res) => {
+  const { userId, reason, messageId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  if (!reason || !String(reason).trim()) return res.status(400).json({ error: 'reason is required' });
+
+  const target = db.prepare('SELECT id, display_name, is_admin FROM users WHERE id = ?').get(userId);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.is_admin) return res.status(400).json({ error: 'Cannot warn an admin' });
+
+  const warnId = uuidv4();
+  const trimmedReason = String(reason).trim();
+  db.prepare(`
+    INSERT INTO admin_warnings (id, user_id, warned_by, reason, message_id, created_at)
+    VALUES (?, ?, ?, ?, ?, unixepoch())
+  `).run(warnId, userId, req.userId, trimmedReason, messageId || null);
+
+  const adminUser = db.prepare('SELECT display_name FROM users WHERE id = ?').get(req.userId);
+  const notice = {
+    type: 'warning',
+    reason: trimmedReason,
+    from: adminUser?.display_name || 'Moderator',
+  };
+
+  for (const [, s] of io.sockets.sockets) {
+    if (s.user?.id === userId) {
+      s.emit('moderation_notice', notice);
+    }
+  }
+
+  console.log(`[admin/warn] ${req.userId} warned ${userId}: ${trimmedReason}`);
+  res.json({ ok: true, warnId });
 });
 
 app.post('/api/admin/ban', authMiddleware, requireAdmin, (req, res) => {
@@ -1668,6 +1726,7 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
+  syncAdminEmails();
   startPresenceRotation(broadcastOnlineUsers);
   try {
     const stats = db.prepare(`
