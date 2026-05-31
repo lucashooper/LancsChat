@@ -229,6 +229,14 @@ db.exec(`
     FOREIGN KEY (warned_by) REFERENCES users(id)
   );
   CREATE INDEX IF NOT EXISTS idx_admin_warnings_user ON admin_warnings(user_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS archived_accounts (
+    archived_user_id TEXT PRIMARY KEY,
+    original_email TEXT NOT NULL,
+    display_name TEXT,
+    archived_at INTEGER DEFAULT (unixepoch())
+  );
+  CREATE INDEX IF NOT EXISTS idx_archived_accounts_email ON archived_accounts(original_email);
 `);
 
 // Seed default rooms if they don't exist

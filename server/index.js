@@ -52,6 +52,72 @@ function syncAdminEmails() {
   }
 }
 
+/** Move all data from a prior archived account onto the current login (same email, new Supabase id). */
+function mergeUserInto(keepUserId, removeUserId) {
+  if (!keepUserId || !removeUserId || keepUserId === removeUserId) return;
+
+  const msgCount = db.prepare('SELECT COUNT(*) AS c FROM messages WHERE sender_id = ?').get(removeUserId)?.c || 0;
+  db.prepare('UPDATE messages SET sender_id = ? WHERE sender_id = ?').run(keepUserId, removeUserId);
+  db.prepare('UPDATE messages SET recipient_id = ? WHERE recipient_id = ?').run(keepUserId, removeUserId);
+
+  const safe = (sql, ...params) => {
+    try { db.prepare(sql).run(...params); } catch { /* table may not exist */ }
+  };
+  safe('UPDATE message_reactions SET user_id = ? WHERE user_id = ?', keepUserId, removeUserId);
+  safe('UPDATE message_reports SET reporter_id = ? WHERE reporter_id = ?', keepUserId, removeUserId);
+  safe('UPDATE message_reports SET reported_user_id = ? WHERE reported_user_id = ?', keepUserId, removeUserId);
+  safe('UPDATE pinned_messages SET pinned_by = ? WHERE pinned_by = ?', keepUserId, removeUserId);
+  safe('UPDATE deleted_messages_log SET deleted_by = ? WHERE deleted_by = ?', keepUserId, removeUserId);
+  safe('UPDATE deleted_messages_log SET sender_id = ? WHERE sender_id = ?', keepUserId, removeUserId);
+  safe('UPDATE admin_warnings SET user_id = ? WHERE user_id = ?', keepUserId, removeUserId);
+  safe('UPDATE admin_warnings SET warned_by = ? WHERE warned_by = ?', keepUserId, removeUserId);
+  safe('DELETE FROM room_last_read WHERE user_id = ?', removeUserId);
+  safe('DELETE FROM unban_requests WHERE user_id = ?', removeUserId);
+  safe('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?', removeUserId, removeUserId);
+  safe('DELETE FROM archived_accounts WHERE archived_user_id = ?', removeUserId);
+
+  db.prepare('DELETE FROM users WHERE id = ?').run(removeUserId);
+  console.log(`[account] Merged archived user ${removeUserId} → ${keepUserId} (${msgCount} messages reclaimed)`);
+}
+
+/** When someone signs up again with the same email, reclaim prior archived account(s). */
+function reclaimArchivedAccountsForEmail(keepUserId, email, displayName) {
+  const safeEmail = (email || '').toLowerCase();
+  if (!safeEmail || safeEmail.includes('@noemail.lancschat.lol') || safeEmail.includes('@deleted.lancschat.internal')) {
+    return;
+  }
+
+  const fromRegistry = db.prepare(`
+    SELECT archived_user_id FROM archived_accounts
+    WHERE lower(original_email) = ? AND archived_user_id != ?
+  `).all(safeEmail, keepUserId);
+
+  for (const row of fromRegistry) {
+    mergeUserInto(keepUserId, row.archived_user_id);
+  }
+
+  // Legacy: archives before we stored original_email (match by display name, or sole orphan for admin emails)
+  if (isAdminEmail(safeEmail)) {
+    const legacy = db.prepare(`
+      SELECT id, display_name FROM users
+      WHERE email LIKE 'archived_%@deleted.lancschat.internal'
+        AND id != ?
+    `).all(keepUserId);
+
+    const unregistered = legacy.filter((row) => {
+      const reg = db.prepare('SELECT original_email FROM archived_accounts WHERE archived_user_id = ?').get(row.id);
+      return !reg || reg.original_email.toLowerCase() === safeEmail;
+    });
+
+    for (const row of unregistered) {
+      const nameMatch = displayName && row.display_name?.toLowerCase() === displayName.toLowerCase();
+      if (nameMatch || unregistered.length === 1) {
+        mergeUserInto(keepUserId, row.id);
+      }
+    }
+  }
+}
+
 const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
 const REPORT_REASONS = ['spam', 'harassment', 'inappropriate', 'other'];
 
@@ -147,6 +213,7 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
       VALUES (?, ?, '', ?, ?, ?, 0, ?)
     `).run(supabaseUserId, safeEmail, name, color, avatarUrl || null, isAdmin);
     user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: avatarUrl || null, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
+    reclaimArchivedAccountsForEmail(supabaseUserId, safeEmail, name);
   } else {
     console.log('[ensureLocalUser] Existing user found:', { current: user.display_name, new: displayName });
     // Don't overwrite display_name from Supabase - local DB is source of truth
@@ -173,6 +240,7 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
       db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(supabaseUserId);
       user.is_admin = 1;
     }
+    reclaimArchivedAccountsForEmail(supabaseUserId, user.email, user.display_name);
   }
   return user;
 }
@@ -698,9 +766,11 @@ app.delete('/api/me/account', authMiddleware, async (req, res) => {
     safeDelete('DELETE FROM pending_email_changes WHERE user_id = ?', req.userId);
 
     if (preserveMessages) {
-      // Admin / test accounts: archive local profile so the email can be re-used, but keep
-      // chat history tied to this user id (display name stays visible in rooms).
       const archivedEmail = `archived_${req.userId}@deleted.lancschat.internal`;
+      db.prepare(`
+        INSERT OR REPLACE INTO archived_accounts (archived_user_id, original_email, display_name, archived_at)
+        VALUES (?, ?, ?, unixepoch())
+      `).run(req.userId, (user.email || '').toLowerCase(), user.display_name);
       db.prepare(`
         UPDATE users
         SET email = ?, is_admin = 0, is_banned = 0, banned_at = NULL, banned_reason = NULL,
