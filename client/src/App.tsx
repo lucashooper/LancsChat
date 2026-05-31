@@ -42,8 +42,13 @@ function App() {
   // Initialize theme: account-specific, default to modern
   useEffect(() => {
     if (user?.id) {
-      const savedTheme = localStorage.getItem(`lancschat-theme-${user.id}`) || 'modern';
-      document.documentElement.setAttribute('data-theme', savedTheme);
+      const themeKey = `lancschat-theme-${user.id}`;
+      const savedTheme = localStorage.getItem(themeKey) || 'modern';
+      const theme = savedTheme === 'retro' ? 'retro' : 'modern';
+      if (savedTheme !== theme) {
+        localStorage.setItem(themeKey, theme);
+      }
+      document.documentElement.setAttribute('data-theme', theme);
     } else {
       // No user logged in (auth page) — always use modern (no theme)
       document.documentElement.setAttribute('data-theme', 'modern');

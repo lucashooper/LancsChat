@@ -6,6 +6,12 @@ import { User, MessageSquare, Loader2, Check, X, ChevronRight, Shield, Info, Cam
 import './SettingsPage.css';
 
 type SettingsSection = 'menu' | 'profile' | 'feedback' | 'about' | 'appearance';
+type Theme = 'modern' | 'retro';
+
+function loadStoredTheme(key: string): Theme {
+  const saved = localStorage.getItem(key);
+  return saved === 'retro' ? 'retro' : 'modern';
+}
 
 interface SettingsPageProps {
   onClose?: () => void;
@@ -28,9 +34,7 @@ export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const themeKey = user?.id ? `lancschat-theme-${user.id}` : 'lancschat-theme';
-  const [theme, setTheme] = useState<'modern' | 'retro' | 'vaporwave'>(
-    (localStorage.getItem(themeKey) as 'modern' | 'retro' | 'vaporwave') || 'modern'
-  );
+  const [theme, setTheme] = useState<Theme>(() => loadStoredTheme(themeKey));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -542,34 +546,6 @@ export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
                       </div>
                       {theme === 'retro' && (
                         <span style={{ color: '#a67c52', fontSize: '13px', fontWeight: 600 }}>✓</span>
-                      )}
-                    </button>
-
-                    {/* Vaporwave Theme */}
-                    <button
-                      type="button"
-                      onClick={() => setTheme('vaporwave')}
-                      style={{
-                        padding: '14px 16px',
-                        borderRadius: '12px',
-                        border: theme === 'vaporwave' ? '2px solid #ff71ce' : '2px solid rgba(255,255,255,0.15)',
-                        background: theme === 'vaporwave' ? 'rgba(255,113,206,0.1)' : 'rgba(255,255,255,0.03)',
-                        color: '#fff',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        textAlign: 'left',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                      }}
-                    >
-                      <span style={{ fontSize: '20px', lineHeight: 1 }}>🌆</span>
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontSize: '15px', fontWeight: 600 }}>Vaporwave</span>
-                        <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginLeft: '8px' }}>Synthwave neon</span>
-                      </div>
-                      {theme === 'vaporwave' && (
-                        <span style={{ color: '#ff71ce', fontSize: '13px', fontWeight: 600 }}>✓</span>
                       )}
                     </button>
                   </div>
