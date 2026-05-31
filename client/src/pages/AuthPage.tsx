@@ -186,7 +186,7 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: signUpEmail,
         password,
         options: {
@@ -199,6 +199,16 @@ export default function AuthPage() {
       });
 
       if (signUpError) throw signUpError;
+
+      // Supabase may return a session before email is confirmed — sign out so they
+      // must verify first (App shows EmailVerificationGate if they log in early).
+      if (
+        data.session &&
+        data.user &&
+        !isEmailVerified(data.user.email, data.user.email_confirmed_at)
+      ) {
+        await supabase.auth.signOut();
+      }
       // Save email so we can pre-fill it if Safe Links redirects them back with an error
       sessionStorage.setItem(PENDING_EMAIL_KEY, signUpEmail);
       setStep('check-email');

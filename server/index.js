@@ -9,6 +9,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 const db = require('./db');
 const { getBoostedOnlineUsers, startPresenceRotation } = require('./presenceBoost');
+const { MAX_MESSAGE_LENGTH } = require('./constants');
 
 // Initialize Resend for sending emails
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -125,7 +126,7 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
     const isAdmin = safeEmail === ADMIN_EMAIL ? 1 : 0;
     db.prepare(`
       INSERT INTO users (id, email, password_hash, display_name, avatar_color, avatar_url, is_verified, is_admin)
-      VALUES (?, ?, '', ?, ?, ?, 1, ?)
+      VALUES (?, ?, '', ?, ?, ?, 0, ?)
     `).run(supabaseUserId, safeEmail, name, color, avatarUrl || null, isAdmin);
     user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: avatarUrl || null, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
   } else {
@@ -188,6 +189,36 @@ function getReactionSummary(messageIds, viewerUserId) {
   }
 
   return map;
+}
+
+function isNoEmailAddress(email) {
+  return !!email && email.includes('@noemail.lancschat.lol');
+}
+
+/** Source of truth for email verification — Supabase admin API. */
+async function isSupabaseEmailConfirmed(userId, email) {
+  if (isNoEmailAddress(email)) return true;
+  if (!supabase) {
+    console.warn('[auth] Supabase admin unavailable — cannot verify email for', userId);
+    return false;
+  }
+  try {
+    const { data, error } = await supabase.auth.admin.getUserById(userId);
+    if (error || !data?.user) return false;
+    return !!data.user.email_confirmed_at;
+  } catch (err) {
+    console.error('[auth] isSupabaseEmailConfirmed failed:', err.message);
+    return false;
+  }
+}
+
+function validateMessageContent(content) {
+  const trimmed = (content || '').trim();
+  if (!trimmed) return { ok: false, error: 'Message cannot be empty' };
+  if (trimmed.length > MAX_MESSAGE_LENGTH) {
+    return { ok: false, error: `Messages must be ${MAX_MESSAGE_LENGTH} characters or less` };
+  }
+  return { ok: true, content: trimmed };
 }
 
 function attachRepliesAndReactions(messages, viewerUserId) {
@@ -1183,7 +1214,7 @@ app.get('/api/online', (req, res) => {
 });
 
 // Socket.IO authentication middleware
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Authentication required'));
 
@@ -1196,7 +1227,13 @@ io.use((socket, next) => {
   const banRow = db.prepare('SELECT is_banned FROM users WHERE id = ?').get(user.id);
   if (banRow && banRow.is_banned) return next(new Error('BANNED'));
 
-  socket.user = user;
+  const emailConfirmed = await isSupabaseEmailConfirmed(user.id, user.email || email);
+  if (!isNoEmailAddress(user.email || email) && !emailConfirmed) {
+    console.warn(`[socket] Blocked unverified user: ${user.display_name} (${user.email})`);
+    return next(new Error('EMAIL_NOT_CONFIRMED'));
+  }
+
+  socket.user = { ...user, emailConfirmed };
   next();
 });
 
@@ -1386,7 +1423,18 @@ io.on('connection', (socket) => {
   // Send message to a room
   socket.on('room_message', (data) => {
     const { roomId, content, replyToMessageId } = data;
-    if (!content || !content.trim() || !roomId) return;
+    if (!roomId) return;
+
+    const validated = validateMessageContent(content);
+    if (!validated.ok) {
+      socket.emit('send_error', { code: 'INVALID_MESSAGE', message: validated.error });
+      return;
+    }
+
+    if (!socket.user.emailConfirmed && !isNoEmailAddress(socket.user.email)) {
+      socket.emit('send_error', { code: 'EMAIL_NOT_VERIFIED', message: 'Verify your email before sending messages.' });
+      return;
+    }
 
     const banRow = db.prepare('SELECT is_banned FROM users WHERE id = ?').get(socket.user.id);
     if (banRow && banRow.is_banned) {
@@ -1394,8 +1442,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const userRow = db.prepare('SELECT email FROM users WHERE id = ?').get(socket.user.id);
-    const isVerified = userRow && !userRow.email.includes('@noemail.lancschat.lol');
+    const isVerified = !!socket.user.emailConfirmed;
     const sendCheck = canSendMessage(socket.user.id, isVerified);
     if (!sendCheck.ok) {
       const msg = isVerified
@@ -1430,7 +1477,7 @@ io.on('connection', (socket) => {
       db.prepare(`
         INSERT INTO messages (id, room_id, sender_id, content, message_type, created_at, reply_to_message_id)
         VALUES (?, ?, ?, ?, 'room', ?, ?)
-      `).run(messageId, roomId, socket.user.id, content.trim(), now, replyTo ? replyTo.id : null);
+      `).run(messageId, roomId, socket.user.id, validated.content, now, replyTo ? replyTo.id : null);
     } catch (err) {
       console.error('[room_message] Failed to save message:', err.message, { roomId, userId: socket.user.id });
       socket.emit('send_error', { code: 'SAVE_FAILED', message: 'Message could not be saved. Please try again.' });
@@ -1441,7 +1488,7 @@ io.on('connection', (socket) => {
 
     const message = {
       id: messageId,
-      content: content.trim(),
+      content: validated.content,
       created_at: now,
       sender_id: socket.user.id,
       reply_to_message_id: replyTo ? replyTo.id : null,
@@ -1459,7 +1506,7 @@ io.on('connection', (socket) => {
     // Update room preview
     const roomUpdate = {
       roomId,
-      last_message: content.trim().substring(0, 100),
+      last_message: validated.content.substring(0, 100),
       last_message_at: now,
       last_message_sender: socket.user.display_name,
     };
@@ -1469,7 +1516,18 @@ io.on('connection', (socket) => {
   // Send a DM
   socket.on('dm_message', (data) => {
     const { recipientId, content, replyToMessageId } = data;
-    if (!content || !content.trim() || !recipientId) return;
+    if (!recipientId) return;
+
+    const validated = validateMessageContent(content);
+    if (!validated.ok) {
+      socket.emit('send_error', { code: 'INVALID_MESSAGE', message: validated.error });
+      return;
+    }
+
+    if (!socket.user.emailConfirmed && !isNoEmailAddress(socket.user.email)) {
+      socket.emit('send_error', { code: 'EMAIL_NOT_VERIFIED', message: 'Verify your email before sending messages.' });
+      return;
+    }
 
     const banRow = db.prepare('SELECT is_banned FROM users WHERE id = ?').get(socket.user.id);
     if (banRow && banRow.is_banned) {
@@ -1477,8 +1535,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const dmUserRow = db.prepare('SELECT email FROM users WHERE id = ?').get(socket.user.id);
-    const dmIsVerified = dmUserRow && !dmUserRow.email.includes('@noemail.lancschat.lol');
+    const dmIsVerified = !!socket.user.emailConfirmed;
     const sendCheck = canSendMessage(socket.user.id, dmIsVerified);
     if (!sendCheck.ok) {
       const msg = dmIsVerified
@@ -1523,7 +1580,7 @@ io.on('connection', (socket) => {
     db.prepare(`
       INSERT INTO messages (id, sender_id, recipient_id, content, message_type, created_at, reply_to_message_id)
       VALUES (?, ?, ?, ?, 'dm', ?, ?)
-    `).run(messageId, userId, recipientId, content.trim(), now, replyTo ? replyTo.id : null);
+    `).run(messageId, userId, recipientId, validated.content, now, replyTo ? replyTo.id : null);
 
     // Update last_message in dm_conversations
     const convoId = existingConvo ? existingConvo.id : db.prepare('SELECT id FROM dm_conversations WHERE user1_id = ? AND user2_id = ?').get(u1, u2).id;
@@ -1531,11 +1588,11 @@ io.on('connection', (socket) => {
       UPDATE dm_conversations 
       SET last_message = ?, last_message_at = ?, last_message_sender = ?
       WHERE id = ?
-    `).run(content.trim().substring(0, 100), now, userId, convoId);
+    `).run(validated.content.substring(0, 100), now, userId, convoId);
 
     const message = {
       id: messageId,
-      content: content.trim(),
+      content: validated.content,
       created_at: now,
       sender_id: userId,
       reply_to_message_id: replyTo ? replyTo.id : null,

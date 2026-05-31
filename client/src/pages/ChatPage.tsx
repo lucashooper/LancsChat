@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { api } from '../api';
+import { MAX_MESSAGE_LENGTH } from '../lib/limits';
 import {
   Hash, LogOut, Users,
   MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin, Eye, EyeOff, ArrowLeft
@@ -353,6 +354,11 @@ export default function ChatPage() {
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || !socket) return;
+
+    if (inputValue.length > MAX_MESSAGE_LENGTH) {
+      setSendError(`Messages must be ${MAX_MESSAGE_LENGTH} characters or less`);
+      return;
+    }
 
     if (cooldownUntil && Date.now() < cooldownUntil) {
       setSendError("You're sending messages too fast, slow down");
@@ -1136,9 +1142,10 @@ export default function ChatPage() {
                     ref={inputRef}
                     type="text"
                     value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
+                    onChange={(e) => setInputValue(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
                     placeholder="Message..."
                     className="inputField"
+                    maxLength={MAX_MESSAGE_LENGTH}
                   />
                   {inputValue.trim() && (
                     <button
