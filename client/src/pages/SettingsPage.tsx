@@ -421,7 +421,9 @@ export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
               <div className="dangerZone">
                 <h3 className="dangerZoneTitle">Danger Zone</h3>
                 <p className="dangerZoneDesc">
-                  Once you delete your account, there is no going back. All your messages will be deleted.
+                  {user?.isAdmin
+                    ? 'Removes your login so you can sign up again with the same email. Your chat messages will stay in rooms.'
+                    : 'Once you delete your account, there is no going back. All your messages will be deleted.'}
                 </p>
                 <button
                   type="button"
@@ -439,7 +441,9 @@ export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
                   <div className="modalContent" onClick={(e) => e.stopPropagation()}>
                     <h3 className="modalTitle">Delete Account?</h3>
                     <p className="modalDesc">
-                      This action cannot be undone. Your account and all your messages will be permanently deleted.
+                      {user?.isAdmin
+                        ? 'Your login will be removed and you can register again with the same email. Messages you posted in rooms will remain visible.'
+                        : 'This action cannot be undone. Your account and all your messages will be permanently deleted.'}
                     </p>
                     <div className="modalActions">
                       <button

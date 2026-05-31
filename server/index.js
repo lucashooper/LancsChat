@@ -668,64 +668,63 @@ app.get('/api/confirm-email', async (req, res) => {
 
 // Delete user account
 app.delete('/api/me/account', authMiddleware, async (req, res) => {
-  const user = db.prepare('SELECT email, is_admin FROM users WHERE id = ?').get(req.userId);
-  
+  const user = db.prepare('SELECT email, display_name, is_admin FROM users WHERE id = ?').get(req.userId);
+
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
-  
-  try {
-    console.log('[DELETE /api/me/account] Deleting account for user:', req.userId);
-    
-    // Helper to safely delete from table if it exists
-    const safeDelete = (query, ...params) => {
-      try {
-        db.prepare(query).run(...params);
-      } catch (err) {
-        // Table might not exist in older databases - that's ok
-        console.log('[DELETE /api/me/account] Skipping:', query, err.message);
-      }
-    };
-    
-    // Delete in order to respect foreign key constraints
-    
-    // 1. Delete user's reactions (if table exists)
-    safeDelete('DELETE FROM reactions WHERE user_id = ?', req.userId);
-    
-    // 2. Delete user's reports (if table exists)
-    safeDelete('DELETE FROM message_reports WHERE reporter_id = ?', req.userId);
-    
-    // 3. Delete user's pinned messages (if table exists)
-    safeDelete('DELETE FROM pinned_messages WHERE pinned_by = ?', req.userId);
-    
-    // 4. Delete user's unban requests (if table exists)
-    safeDelete('DELETE FROM unban_requests WHERE user_id = ?', req.userId);
-    
-    // 5. Delete DM conversations
-    safeDelete('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?', req.userId, req.userId);
-    
-    // 6. Delete all messages sent by user (hard delete to avoid foreign key issues)
-    safeDelete('DELETE FROM messages WHERE sender_id = ?', req.userId);
-    
-    // 7. Finally, delete the user
-    db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
-    
-    // Delete from Supabase (if client is available)
-    if (supabase) {
-      console.log('[DELETE /api/me/account] Attempting Supabase deletion...');
-      const { data, error: supabaseError } = await supabase.auth.admin.deleteUser(req.userId);
-      if (supabaseError) {
-        console.error('[DELETE /api/me/account] Supabase deletion failed:', supabaseError.message, supabaseError.status);
-        // Continue anyway - local DB deletion succeeded
-      } else {
-        console.log('[DELETE /api/me/account] Supabase deletion successful');
-      }
-    } else {
-      console.log('[DELETE /api/me/account] Supabase client not available, skipping Supabase deletion');
+
+  const preserveMessages = isAdminEmail(user.email) || !!user.is_admin;
+
+  const safeDelete = (query, ...params) => {
+    try {
+      db.prepare(query).run(...params);
+    } catch (err) {
+      console.log('[DELETE /api/me/account] Skipping:', query, err.message);
     }
-    
-    console.log('[DELETE /api/me/account] Account deleted successfully from local DB');
-    res.json({ ok: true });
+  };
+
+  try {
+    console.log('[DELETE /api/me/account] Deleting account for user:', req.userId, { preserveMessages });
+
+    // Personal data — always remove
+    safeDelete('DELETE FROM message_reactions WHERE user_id = ?', req.userId);
+    safeDelete('DELETE FROM reactions WHERE user_id = ?', req.userId);
+    safeDelete('DELETE FROM message_reports WHERE reporter_id = ?', req.userId);
+    safeDelete('DELETE FROM pinned_messages WHERE pinned_by = ?', req.userId);
+    safeDelete('DELETE FROM unban_requests WHERE user_id = ?', req.userId);
+    safeDelete('DELETE FROM admin_warnings WHERE user_id = ? OR warned_by = ?', req.userId, req.userId);
+    safeDelete('DELETE FROM room_last_read WHERE user_id = ?', req.userId);
+    safeDelete('DELETE FROM pending_email_changes WHERE user_id = ?', req.userId);
+
+    if (preserveMessages) {
+      // Admin / test accounts: archive local profile so the email can be re-used, but keep
+      // chat history tied to this user id (display name stays visible in rooms).
+      const archivedEmail = `archived_${req.userId}@deleted.lancschat.internal`;
+      db.prepare(`
+        UPDATE users
+        SET email = ?, is_admin = 0, is_banned = 0, banned_at = NULL, banned_reason = NULL,
+            avatar_url = NULL, password_hash = '', is_verified = 0
+        WHERE id = ?
+      `).run(archivedEmail, req.userId);
+      safeDelete('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?', req.userId, req.userId);
+      console.log('[DELETE /api/me/account] Archived admin account — messages preserved for', user.display_name);
+    } else {
+      safeDelete('DELETE FROM dm_conversations WHERE user1_id = ? OR user2_id = ?', req.userId, req.userId);
+      safeDelete('DELETE FROM messages WHERE sender_id = ?', req.userId);
+      db.prepare('DELETE FROM users WHERE id = ?').run(req.userId);
+    }
+
+    if (supabase) {
+      const { error: supabaseError } = await supabase.auth.admin.deleteUser(req.userId);
+      if (supabaseError) {
+        console.error('[DELETE /api/me/account] Supabase deletion failed:', supabaseError.message);
+      } else {
+        console.log('[DELETE /api/me/account] Supabase auth user deleted');
+      }
+    }
+
+    res.json({ ok: true, messagesPreserved: preserveMessages });
   } catch (err) {
     console.error('[DELETE /api/me/account] Error:', err);
     res.status(500).json({ error: 'Failed to delete account' });
