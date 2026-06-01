@@ -80,6 +80,26 @@ function mergeUserInto(keepUserId, removeUserId) {
   console.log(`[account] Merged archived user ${removeUserId} → ${keepUserId} (${msgCount} messages reclaimed)`);
 }
 
+/** Temporarily rename conflicting rows so a new Supabase id can claim the email. Returns ids to merge after insert. */
+function freeEmailForNewUser(email, exceptUserId) {
+  const safeEmail = (email || '').toLowerCase();
+  if (!safeEmail || safeEmail.includes('@unknown.local') || safeEmail.includes('@noemail.lancschat.lol')) {
+    return [];
+  }
+
+  const conflicts = db.prepare(`
+    SELECT id FROM users WHERE lower(email) = ? AND id != ?
+  `).all(safeEmail, exceptUserId);
+
+  for (const row of conflicts) {
+    db.prepare('UPDATE users SET email = ? WHERE id = ?').run(
+      `stale_${row.id}@deleted.lancschat.internal`,
+      row.id
+    );
+  }
+  return conflicts.map((row) => row.id);
+}
+
 /** When someone signs up again with the same email, reclaim prior archived account(s). */
 function reclaimArchivedAccountsForEmail(keepUserId, email, displayName) {
   const safeEmail = (email || '').toLowerCase();
@@ -208,11 +228,15 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
     const color = avatarColor || AVATAR_COLORS[supabaseUserId.charCodeAt(0) % AVATAR_COLORS.length];
     const safeEmail = (email || '').toLowerCase() || `${supabaseUserId}@unknown.local`;
     const isAdmin = isAdminEmail(safeEmail) ? 1 : 0;
+    const staleUserIds = freeEmailForNewUser(safeEmail, supabaseUserId);
     db.prepare(`
       INSERT INTO users (id, email, password_hash, display_name, avatar_color, avatar_url, is_verified, is_admin)
       VALUES (?, ?, '', ?, ?, ?, 0, ?)
     `).run(supabaseUserId, safeEmail, name, color, avatarUrl || null, isAdmin);
     user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: avatarUrl || null, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
+    for (const staleId of staleUserIds) {
+      mergeUserInto(supabaseUserId, staleId);
+    }
     reclaimArchivedAccountsForEmail(supabaseUserId, safeEmail, name);
   } else {
     console.log('[ensureLocalUser] Existing user found:', { current: user.display_name, new: displayName });

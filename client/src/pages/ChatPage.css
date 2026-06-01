@@ -359,53 +359,47 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .chatHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  margin-right: -32px;
+  padding: 16px 32px;
   flex-shrink: 0;
   position: relative;
+  min-height: 56px;
+  border-bottom: 1px solid #262626;
 }
 
 .chatHeaderRow {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .chatHeaderTitle {
   font-size: 20px;
   font-weight: 600;
   color: #fff;
-}
-
-/* Full-width border line below the header area */
-.chatLayout::before {
-  content: '';
-  position: fixed;
-  top: 73px;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: #262626;
-  z-index: 5;
-  pointer-events: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 32px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .messageRow {
@@ -413,6 +407,8 @@
   align-items: flex-end;
   gap: 12px;
   position: relative;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .messageRow.isOwn {
@@ -467,11 +463,14 @@
 
 .msgBlock {
   max-width: 60%;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .msgBubbleWrap {
   position: relative;
-  display: inline-block;
+  display: block;
+  max-width: 100%;
 }
 
 .msgActions {
@@ -670,6 +669,9 @@
   border-radius: 22px;
   font-size: 15px;
   line-height: 1.35;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .msgBubble.isOwn {
@@ -708,6 +710,8 @@
 .msgContent {
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .msgDeleted {
@@ -1132,10 +1136,15 @@
   padding-right: 32px;
   padding-bottom: 40px;
   padding-top: 16px;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .inputForm {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .inputBar {
@@ -1148,6 +1157,8 @@
   transition: border-color 0.15s ease;
   padding-left: 12px; /* requested */
   padding-right: 12px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .inputBar:focus-within {
@@ -1168,6 +1179,7 @@
 
 .inputField {
   flex: 1;
+  min-width: 0;
   border: 0;
   outline: none;
   background: transparent;
@@ -1222,6 +1234,15 @@
   line-height: 1.35;
   flex: 1;
   min-width: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.msgList {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .replyCancel {
@@ -1716,9 +1737,11 @@
     border: none;
     color: #fafafa;
     cursor: pointer;
-    padding: 8px;
-    margin-right: 4px;
-    margin-left: -4px;
+    padding: 0;
+    margin: 0;
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
     border-radius: 8px;
     transition: background 0.2s;
   }
@@ -1731,6 +1754,7 @@
   .chatLayout {
     gap: 0;
     padding: 0;
+    overflow-x: hidden;
   }
 
   /* ── When NOT in a chat AND NOT in settings: hide mainPanel, show sidebar + middlePanel ── */
@@ -1745,18 +1769,42 @@
   }
 
   .chatLayout.chatOpen .mainPanel {
-    width: 100vw;
+    width: 100%;
+    max-width: 100%;
   }
 
-  /* Adjust chat header for mobile */
+  /* Chat header — Instagram-style centred bar */
   .chatHeader {
-    padding: 16px;
-    margin-right: 0;
-    min-height: auto;
+    padding: 0 8px 0 4px;
+    min-height: 56px;
+    height: 56px;
+    align-items: center;
   }
 
   .chatHeaderTitle {
-    font-size: 17px;
+    font-size: 16px;
+  }
+
+  .pinnedBtn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 10px;
+    flex-shrink: 0;
+    justify-content: center;
+  }
+
+  /* Messages area */
+  .messages {
+    padding: 12px 16px 16px;
+  }
+
+  .msgBlock {
+    max-width: min(82%, calc(100vw - 72px));
+  }
+
+  .msgBubble {
+    padding: 10px 16px;
+    font-size: 15px;
   }
 
   /* Hide online panel on mobile */
@@ -1769,56 +1817,63 @@
     display: none;
   }
 
-  /* ── Sidebar on mobile: slim left column ── */
+  /* ── Sidebar on mobile: slim left column with larger tap targets ── */
   .sidebar {
-    width: 56px;
+    width: 64px;
     padding: 12px 8px;
+    flex-shrink: 0;
+  }
+
+  .sidebarNav {
+    gap: 4px;
   }
 
   /* Logo smaller on mobile */
   .sidebarLogo {
-    padding-bottom: 20px;
+    padding-bottom: 16px;
   }
 
   .sidebarLogoImg {
-    height: 24px;
-    width: 24px;
+    height: 26px;
+    width: 26px;
   }
 
-  /* Nav items bigger touch targets */
+  /* Nav items — 44px minimum touch targets */
   .sidebarNavItem {
-    height: 48px;
-    border-radius: 10px;
-    padding: 0 12px;
+    min-height: 52px;
+    height: auto;
+    border-radius: 12px;
+    padding: 0;
     justify-content: center;
   }
 
   .sidebarNavItem svg {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
   }
 
   /* User avatar and logout visible */
   .sidebarBottom {
-    padding-top: 16px;
-    padding-bottom: 16px;
-    gap: 12px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    gap: 8px;
   }
 
   .sidebarUserRow {
-    padding-left: 8px;
+    padding-left: 0;
     justify-content: center;
+    min-height: 44px;
   }
 
   .sidebarUserAvatarImg,
   .sidebarUserAvatarFallback {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
   }
 
   /* Logout button */
-  .sidebarNavItem:last-child {
-    height: 48px;
+  .sidebarBottom .sidebarNavItem {
+    min-height: 52px;
   }
 
   /* ── Middle panel: take remaining width ── */
@@ -1826,51 +1881,66 @@
     flex: 1;
     width: auto;
     max-width: none;
+    min-width: 0;
+    overflow-x: hidden;
   }
 
-  .middlePanelHeader {
+  .panelHeader {
     padding: 16px;
   }
 
-  .middlePanelTitle {
+  .panelTitle {
     font-size: 22px;
   }
 
-  /* Room/DM list items */
+  .panelList {
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-bottom: 24px;
+  }
+
+  .listStack {
+    gap: 6px;
+  }
+
+  /* Room/DM list items — more breathing room */
   .listItem {
-    padding: 14px 16px;
+    padding: 16px 14px;
+    min-height: 80px;
+    gap: 14px;
+    border-radius: 14px;
   }
 
   .listItemTitle {
     font-size: 15px;
     white-space: normal;
-    line-height: 1.3;
+    line-height: 1.35;
   }
 
   .listItemDesc {
     font-size: 13px;
     white-space: normal;
-    line-height: 1.3;
+    line-height: 1.4;
+    margin-top: 6px;
   }
 
   /* Adjust message input */
+  .inputBarWrap {
+    padding: 12px 12px max(16px, env(safe-area-inset-bottom));
+  }
+
   .inputBar {
-    padding: 12px 16px;
-  }
-
-  /* Adjust message bubbles */
-  .messageBubble {
-    max-width: 85%;
-  }
-
-  /* Adjust pinned button */
-  .pinnedBtn {
-    padding: 6px 10px;
+    padding-left: 12px;
+    padding-right: 12px;
   }
 
   /* Hide welcome text on the right (select a room) */
   .welcome {
     display: none;
+  }
+
+  .modNoticeBanner {
+    margin: 0 12px 8px;
   }
 
   /* ── Settings page: hide sidebar, fullscreen settings ── */
@@ -1879,7 +1949,8 @@
   }
 
   .chatLayout.settingsOpen .mainPanel {
-    width: 100vw;
+    width: 100%;
+    max-width: 100%;
   }
 
   /* Make modals full screen on mobile */
@@ -1888,9 +1959,9 @@
   }
 
   .modalBox {
-    width: 100vw;
+    width: 100%;
+    max-width: 100%;
     height: 100vh;
-    max-width: 100vw;
     max-height: 100vh;
     border-radius: 0;
   }
