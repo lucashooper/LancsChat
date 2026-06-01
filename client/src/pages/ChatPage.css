@@ -2163,3 +2163,37 @@
     width: 220px;
   }
 }
+
+/* ─── DESKTOP SIZING (769px+) ─── */
+@media (min-width: 769px) {
+  .sidebarNavLabel {
+    font-size: 14px;
+  }
+
+  .listItem {
+    padding: 14px 20px;
+    min-height: 68px;
+  }
+
+  .chatHeaderTitle {
+    font-size: 16px;
+    font-weight: var(--font-weight-heading);
+  }
+
+  .msgBlock {
+    max-width: 70%;
+  }
+
+  .messageRow.isOwn .msgBlock {
+    max-width: 70%;
+  }
+
+  .msgBubble {
+    font-size: var(--text-body);
+    line-height: 1.45;
+  }
+
+  .onlineUserName {
+    font-size: 14px;
+  }
+}
