@@ -103,6 +103,8 @@ addColumnIfMissing('messages', 'reply_to_message_id TEXT');
 addColumnIfMissing('messages', 'is_deleted INTEGER DEFAULT 0');
 addColumnIfMissing('messages', 'deleted_at INTEGER');
 addColumnIfMissing('messages', 'deleted_by TEXT');
+addColumnIfMissing('messages', "content_type TEXT DEFAULT 'text'");
+addColumnIfMissing('messages', 'audio_duration REAL');
 
 addColumnIfMissing('dm_conversations', 'last_message TEXT');
 addColumnIfMissing('dm_conversations', 'last_message_at INTEGER');

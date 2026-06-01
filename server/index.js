@@ -9,7 +9,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 const db = require('./db');
 const { getBoostedOnlineUsers, startPresenceRotation } = require('./presenceBoost');
-const { MAX_MESSAGE_LENGTH } = require('./constants');
+const { MAX_MESSAGE_LENGTH, MAX_VOICE_DURATION_SECONDS } = require('./constants');
 
 // Initialize Resend for sending emails
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -329,6 +329,46 @@ function validateMessageContent(content) {
     return { ok: false, error: `Messages must be ${MAX_MESSAGE_LENGTH} characters or less` };
   }
   return { ok: true, content: trimmed };
+}
+
+function isAllowedVoiceUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return false;
+    return u.pathname.includes('/voice-messages/');
+  } catch {
+    return false;
+  }
+}
+
+function validateIncomingMessage(data) {
+  const contentType = data?.contentType === 'audio' ? 'audio' : 'text';
+  if (contentType === 'audio') {
+    const url = (data.content || '').trim();
+    const duration = Number(data.audioDuration);
+    if (!url || !Number.isFinite(duration)) {
+      return { ok: false, error: 'Invalid voice message' };
+    }
+    if (duration < 0.5 || duration > MAX_VOICE_DURATION_SECONDS) {
+      return { ok: false, error: `Voice messages must be under ${MAX_VOICE_DURATION_SECONDS} seconds` };
+    }
+    if (!isAllowedVoiceUrl(url)) {
+      return { ok: false, error: 'Invalid audio URL' };
+    }
+    return {
+      ok: true,
+      content: url,
+      contentType: 'audio',
+      audioDuration: Math.round(duration * 10) / 10,
+    };
+  }
+  const validated = validateMessageContent(data?.content);
+  if (!validated.ok) return validated;
+  return { ok: true, content: validated.content, contentType: 'text', audioDuration: null };
+}
+
+function messagePreviewText(content, contentType) {
+  return contentType === 'audio' ? '🎤 Voice message' : content.substring(0, 100);
 }
 
 function attachRepliesAndReactions(messages, viewerUserId) {
@@ -914,7 +954,7 @@ app.get('/api/rooms/:roomId/messages', authMiddleware, (req, res) => {
 
     let query = `
       SELECT m.id, m.content, m.created_at, m.sender_id,
-             m.reply_to_message_id, m.is_deleted,
+             m.reply_to_message_id, m.is_deleted, m.content_type, m.audio_duration,
              u.display_name, u.avatar_color, u.avatar_url, u.is_admin
       FROM messages m
       JOIN users u ON m.sender_id = u.id
@@ -1084,6 +1124,7 @@ app.get('/api/dms/:otherUserId/messages', authMiddleware, (req, res) => {
 
     const rows = db.prepare(`
       SELECT m.id, m.content, m.created_at, m.sender_id, m.reply_to_message_id, m.is_deleted,
+             m.content_type, m.audio_duration,
              u.display_name, u.avatar_color, u.avatar_url, u.is_admin
       FROM messages m
       JOIN users u ON m.sender_id = u.id
@@ -1573,10 +1614,10 @@ io.on('connection', (socket) => {
 
   // Send message to a room
   socket.on('room_message', (data) => {
-    const { roomId, content, replyToMessageId } = data;
+    const { roomId, replyToMessageId } = data;
     if (!roomId) return;
 
-    const validated = validateMessageContent(content);
+    const validated = validateIncomingMessage(data);
     if (!validated.ok) {
       socket.emit('send_error', { code: 'INVALID_MESSAGE', message: validated.error });
       return;
@@ -1626,9 +1667,9 @@ io.on('connection', (socket) => {
 
     try {
       db.prepare(`
-        INSERT INTO messages (id, room_id, sender_id, content, message_type, created_at, reply_to_message_id)
-        VALUES (?, ?, ?, ?, 'room', ?, ?)
-      `).run(messageId, roomId, socket.user.id, validated.content, now, replyTo ? replyTo.id : null);
+        INSERT INTO messages (id, room_id, sender_id, content, message_type, created_at, reply_to_message_id, content_type, audio_duration)
+        VALUES (?, ?, ?, ?, 'room', ?, ?, ?, ?)
+      `).run(messageId, roomId, socket.user.id, validated.content, now, replyTo ? replyTo.id : null, validated.contentType, validated.audioDuration);
     } catch (err) {
       console.error('[room_message] Failed to save message:', err.message, { roomId, userId: socket.user.id });
       socket.emit('send_error', { code: 'SAVE_FAILED', message: 'Message could not be saved. Please try again.' });
@@ -1640,6 +1681,8 @@ io.on('connection', (socket) => {
     const message = {
       id: messageId,
       content: validated.content,
+      content_type: validated.contentType,
+      audio_duration: validated.audioDuration,
       created_at: now,
       sender_id: socket.user.id,
       reply_to_message_id: replyTo ? replyTo.id : null,
@@ -1657,7 +1700,7 @@ io.on('connection', (socket) => {
     // Update room preview
     const roomUpdate = {
       roomId,
-      last_message: validated.content.substring(0, 100),
+      last_message: messagePreviewText(validated.content, validated.contentType),
       last_message_at: now,
       last_message_sender: socket.user.display_name,
     };
@@ -1666,10 +1709,10 @@ io.on('connection', (socket) => {
 
   // Send a DM
   socket.on('dm_message', (data) => {
-    const { recipientId, content, replyToMessageId } = data;
+    const { recipientId, replyToMessageId } = data;
     if (!recipientId) return;
 
-    const validated = validateMessageContent(content);
+    const validated = validateIncomingMessage(data);
     if (!validated.ok) {
       socket.emit('send_error', { code: 'INVALID_MESSAGE', message: validated.error });
       return;
@@ -1729,9 +1772,9 @@ io.on('connection', (socket) => {
     }
 
     db.prepare(`
-      INSERT INTO messages (id, sender_id, recipient_id, content, message_type, created_at, reply_to_message_id)
-      VALUES (?, ?, ?, ?, 'dm', ?, ?)
-    `).run(messageId, userId, recipientId, validated.content, now, replyTo ? replyTo.id : null);
+      INSERT INTO messages (id, sender_id, recipient_id, content, message_type, created_at, reply_to_message_id, content_type, audio_duration)
+      VALUES (?, ?, ?, ?, 'dm', ?, ?, ?, ?)
+    `).run(messageId, userId, recipientId, validated.content, now, replyTo ? replyTo.id : null, validated.contentType, validated.audioDuration);
 
     // Update last_message in dm_conversations
     const convoId = existingConvo ? existingConvo.id : db.prepare('SELECT id FROM dm_conversations WHERE user1_id = ? AND user2_id = ?').get(u1, u2).id;
@@ -1739,11 +1782,13 @@ io.on('connection', (socket) => {
       UPDATE dm_conversations 
       SET last_message = ?, last_message_at = ?, last_message_sender = ?
       WHERE id = ?
-    `).run(validated.content.substring(0, 100), now, userId, convoId);
+    `).run(messagePreviewText(validated.content, validated.contentType), now, userId, convoId);
 
     const message = {
       id: messageId,
       content: validated.content,
+      content_type: validated.contentType,
+      audio_duration: validated.audioDuration,
       created_at: now,
       sender_id: userId,
       reply_to_message_id: replyTo ? replyTo.id : null,

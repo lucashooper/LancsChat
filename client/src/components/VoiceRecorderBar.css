@@ -1,0 +1,142 @@
+.voiceComposer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+}
+
+.voiceCancelBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.voiceCancelBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.voiceCancelBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.voiceRecordBar {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border-radius: 22px;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.voiceRecordBarFill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #0095f6 0%, #0081d6 55%, #0070c0 100%);
+  transform-origin: left center;
+  transform: scaleX(calc(var(--voice-progress, 0) * 0.01));
+  will-change: transform;
+}
+
+.voiceRecordBarFill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: voiceWaveShimmer 2.4s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes voiceWaveShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.voiceRecordBarContent {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 0 10px;
+}
+
+.voiceMainBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.voiceMainBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.voiceMainBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voiceTimer {
+  font-size: var(--text-body);
+  font-weight: var(--font-weight-label);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.voiceSendBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 0;
+  background: #0095f6;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+  box-shadow: 0 4px 16px rgba(0, 149, 246, 0.35);
+}
+
+.voiceSendBtn:hover:not(:disabled) {
+  background: #1aa1f7;
+  transform: scale(1.04);
+}
+
+.voiceSendBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

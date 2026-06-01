@@ -1,4 +1,5 @@
 /** Max characters per chat message (rooms + DMs). Similar to Discord/Instagram DMs. */
 const MAX_MESSAGE_LENGTH = 2000;
+const MAX_VOICE_DURATION_SECONDS = 60;
 
-module.exports = { MAX_MESSAGE_LENGTH };
+module.exports = { MAX_MESSAGE_LENGTH, MAX_VOICE_DURATION_SECONDS };

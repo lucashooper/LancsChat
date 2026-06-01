@@ -1,0 +1,77 @@
+.voicePlayer {
+  min-width: 200px;
+  max-width: min(280px, 100%);
+  width: 100%;
+}
+
+.voicePlayerPill {
+  position: relative;
+  height: 36px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.voicePlayerFill {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.22);
+  transform-origin: left center;
+  transform: scaleX(calc(var(--voice-progress, 0) * 0.01));
+  will-change: transform;
+  pointer-events: none;
+}
+
+.voicePlayer.isOwn .voicePlayerFill {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.voicePlayerContent {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 6px;
+}
+
+.voicePlayBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.voicePlayBtn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(1.04);
+}
+
+.voicePlayer:not(.isOwn) .voicePlayBtn {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.voiceDuration {
+  font-size: var(--text-desc);
+  font-weight: var(--font-weight-label);
+  color: rgba(255, 255, 255, 0.85);
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.voicePlayer.isOwn .voiceDuration {
+  color: rgba(255, 255, 255, 0.95);
+}

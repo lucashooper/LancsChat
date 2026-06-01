@@ -4,16 +4,34 @@
   box-sizing: border-box;
 }
 
+:root {
+  --font-weight-body: 400;
+  --font-weight-label: 500;
+  --font-weight-heading: 600;
+  --text-desc: 13px;
+  --text-body: 14px;
+  --text-label: 15px;
+  --text-heading: 17px;
+}
+
 html, body, #root {
   height: 100%;
   min-height: 100vh;
   background-color: #000;
   color: #fafafa;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-weight: var(--font-weight-body);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   max-width: 100vw;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 ::-webkit-scrollbar {

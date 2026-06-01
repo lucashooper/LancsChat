@@ -4,10 +4,14 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { api } from '../api';
 import { MAX_MESSAGE_LENGTH } from '../lib/limits';
+import { uploadVoiceMessage } from '../lib/voiceMessage';
+import VoiceMessagePlayer from '../components/VoiceMessagePlayer';
+import VoiceRecorderBar from '../components/VoiceRecorderBar';
+import { RoomIcon } from '../lib/roomIcons';
 import {
   Hash, LogOut, Users,
   MessageSquare, Settings, Smile, Shield, Reply, MoreVertical, Plus, X, Pin, Eye, EyeOff, ArrowLeft,
-  Trash2, AlertTriangle, Ban,
+  Trash2, AlertTriangle, Ban, Mic, Copy, Flag,
 } from 'lucide-react';
 import SettingsPage from './SettingsPage';
 import { supabase } from '../lib/supabase';
@@ -27,6 +31,8 @@ interface Room {
 interface Message {
   id: string;
   content: string;
+  content_type?: 'text' | 'audio';
+  audio_duration?: number | null;
   created_at: number;
   sender_id: string;
   display_name: string;
@@ -108,6 +114,11 @@ export default function ChatPage() {
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [fullEmojiPicker, setFullEmojiPicker] = useState<{ messageId: string; x: number; y: number } | null>(null);
   const [inputEmojiPicker, setInputEmojiPicker] = useState(false);
+  const [uploadingVoice, setUploadingVoice] = useState(false);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
+  );
   const [dmContextMenu, setDmContextMenu] = useState<{ conversationId: string; x: number; y: number } | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
   const [showPinnedModal, setShowPinnedModal] = useState(false);
@@ -160,7 +171,8 @@ export default function ChatPage() {
     try {
       const msgs = await api<Message[]>(`/rooms/${roomId}/messages`, { token });
       setMessages(msgs);
-      console.log('[Chat] Loaded message history', { roomId, count: msgs.length });
+      const visible = msgs.filter((m) => Number(m.is_deleted) !== 1).length;
+      console.log('[Chat] Loaded message history', { roomId, total: msgs.length, visible });
       setTimeout(scrollToBottom, 100);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not load messages';
@@ -208,18 +220,30 @@ export default function ChatPage() {
     }
   }, [activeTab, token]);
 
-  // Join a room via socket + load persisted history
+  // Join a room via socket
   useEffect(() => {
     if (!socket || !selectedRoom) return;
 
     socket.emit('join_room', selectedRoom.id);
-    void loadRoomMessages(selectedRoom.id);
-    void loadPinnedMessages(selectedRoom.id);
 
     return () => {
       socket.emit('leave_room', selectedRoom.id);
     };
-  }, [socket, selectedRoom, loadRoomMessages]);
+  }, [socket, selectedRoom?.id]);
+
+  // Load room history whenever room/token is ready (don't wait for socket)
+  useEffect(() => {
+    if (!token || !selectedRoom || activeTab !== 'rooms') return;
+    void loadRoomMessages(selectedRoom.id);
+    void loadPinnedMessages(selectedRoom.id);
+  }, [token, selectedRoom?.id, activeTab, loadRoomMessages]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   // Load DM messages
   useEffect(() => {
@@ -251,7 +275,14 @@ export default function ChatPage() {
       // Always update room preview for any room
       setRooms((prev) => prev.map((r) =>
         r.id === data.roomId
-          ? { ...r, last_message: data.message.content?.substring(0, 100), last_message_at: data.message.created_at, last_message_sender: data.message.display_name }
+          ? {
+              ...r,
+              last_message: data.message.content_type === 'audio'
+                ? '🎤 Voice message'
+                : data.message.content?.substring(0, 100),
+              last_message_at: data.message.created_at,
+              last_message_sender: data.message.display_name,
+            }
           : r
       ));
     };
@@ -393,6 +424,32 @@ export default function ChatPage() {
     setInputValue('');
     setReplyingTo(null);
     inputRef.current?.focus();
+  };
+
+  const sendVoicePayload = async (blob: Blob, duration: number) => {
+    if (!socket || !user?.id) return;
+    setUploadingVoice(true);
+    setSendError('');
+    try {
+      const url = await uploadVoiceMessage(user.id, blob);
+      const payload = {
+        content: url,
+        contentType: 'audio' as const,
+        audioDuration: duration,
+        replyToMessageId: replyingTo?.id || null,
+      };
+      if (activeTab === 'rooms' && selectedRoom) {
+        socket.emit('room_message', { roomId: selectedRoom.id, ...payload });
+      } else if (activeTab === 'dms' && selectedDM) {
+        socket.emit('dm_message', { recipientId: selectedDM.other_id, ...payload });
+      }
+      setReplyingTo(null);
+      setShowVoiceRecorder(false);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : 'Failed to send voice message');
+    } finally {
+      setUploadingVoice(false);
+    }
   };
 
   const clearLongPress = () => {
@@ -544,8 +601,6 @@ export default function ChatPage() {
   const openRoom = (room: Room) => {
     setSelectedRoom(room);
     setChatOpen(true);
-    setMessages([]);
-    setMessagesLoadError('');
     sessionStorage.setItem(LAST_ROOM_KEY, room.id);
   };
 
@@ -638,7 +693,7 @@ export default function ChatPage() {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const isInChat = chatOpen && ((activeTab === 'rooms' && selectedRoom) || (activeTab === 'dms' && selectedDM));
+  const isInChat = (!isMobile || chatOpen) && ((activeTab === 'rooms' && selectedRoom) || (activeTab === 'dms' && selectedDM));
   const currentMessages = activeTab === 'dms' ? dmMessages : messages;
 
   useEffect(() => {
@@ -682,7 +737,10 @@ export default function ChatPage() {
   }, [user?.id]);
 
   useEffect(() => {
-    setMessages((prev) => prev.map((m) => ({ ...m, reactions: reactionMap[m.id] || [] })));
+    setMessages((prev) => {
+      if (prev.length === 0) return prev;
+      return prev.map((m) => ({ ...m, reactions: reactionMap[m.id] || [] }));
+    });
   }, [reactionMap]);
 
   useEffect(() => {
@@ -876,9 +934,14 @@ export default function ChatPage() {
                 <button
                   key={room.id}
                   onClick={() => openRoom(room)}
-                  className={`listItem ${selectedRoom?.id === room.id && chatOpen ? 'isActive' : ''} ${room.has_unread ? 'hasUnread' : ''}`}
+                  className={`listItem ${selectedRoom?.id === room.id && (!isMobile || chatOpen) ? 'isActive' : ''} ${room.has_unread ? 'hasUnread' : ''}`}
                 >
-                  <div className="roomIcon">{room.icon}</div>
+                  <div className="roomIcon">
+                    <RoomIcon
+                      roomId={room.id}
+                      active={selectedRoom?.id === room.id && (!isMobile || chatOpen)}
+                    />
+                  </div>
                   <div className="listItemMain">
                     <p className="listItemTitle">{room.name}</p>
                     <p className="listItemDesc">
@@ -973,23 +1036,13 @@ export default function ChatPage() {
             {/* Chat Header */}
             <div className="chatHeader">
               {activeTab === 'rooms' && selectedRoom && (
-                <>
-                  <div className="chatHeaderRow">
-                    <button className="mobileBackBtn" onClick={() => setChatOpen(false)} title="Back to rooms">
-                      <ArrowLeft size={20} />
-                    </button>
-                    <span style={{ fontSize: 24 }}>{selectedRoom.icon}</span>
-                    <h2 className="chatHeaderTitle">{selectedRoom.name}</h2>
-                  </div>
-                  <button
-                    className="pinnedBtn"
-                    onClick={() => setShowPinnedModal(true)}
-                    title={pinnedMessages.length > 0 ? `${pinnedMessages.length} pinned message${pinnedMessages.length > 1 ? 's' : ''}` : 'Pinned Messages'}
-                  >
-                    <Pin size={20} />
-                    {pinnedMessages.length > 0 && <span className="pinnedCount">{pinnedMessages.length}</span>}
+                <div className="chatHeaderRow">
+                  <button className="mobileBackBtn" onClick={() => setChatOpen(false)} title="Back to rooms">
+                    <ArrowLeft size={20} />
                   </button>
-                </>
+                  <RoomIcon roomId={selectedRoom.id} active className="chatHeaderRoomIcon" />
+                  <h2 className="chatHeaderTitle">{selectedRoom.name}</h2>
+                </div>
               )}
 
               {activeTab === 'dms' && selectedDM && (
@@ -998,13 +1051,38 @@ export default function ChatPage() {
                     <ArrowLeft size={20} />
                   </button>
                   <div
-                    style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: selectedDM.other_color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 600, fontSize: 14, flexShrink: 0 }}
+                    style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: selectedDM.other_color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 500, fontSize: 14, flexShrink: 0 }}
                   >
                     {selectedDM.other_name?.charAt(0)}
                   </div>
                   <h2 className="chatHeaderTitle">{selectedDM.other_name}</h2>
                 </div>
               )}
+
+              <div className="chatHeaderActions">
+                {onlineUsers.length > 0 && !showOnlinePanel && (
+                  <button
+                    type="button"
+                    className="chatHeaderActionBtn"
+                    onClick={() => setShowOnlinePanel(true)}
+                    title="Show online users"
+                    aria-label="Show online users"
+                  >
+                    <Eye size={20} />
+                  </button>
+                )}
+                {activeTab === 'rooms' && selectedRoom && (
+                  <button
+                    type="button"
+                    className="pinnedBtn"
+                    onClick={() => setShowPinnedModal(true)}
+                    title={pinnedMessages.length > 0 ? `${pinnedMessages.length} pinned message${pinnedMessages.length > 1 ? 's' : ''}` : 'Pinned Messages'}
+                  >
+                    <Pin size={20} />
+                    {pinnedMessages.length > 0 && <span className="pinnedCount">{pinnedMessages.length}</span>}
+                  </button>
+                )}
+              </div>
             </div>
 
             {modNotice && (
@@ -1034,8 +1112,17 @@ export default function ChatPage() {
                 </div>
               )}
               <div className="msgList">
-              {currentMessages.filter(msg => !msg.is_deleted).map((msg, i) => {
-                const filteredMessages = currentMessages.filter(m => !m.is_deleted);
+              {(() => {
+                const filteredMessages = currentMessages.filter((m) => Number(m.is_deleted) !== 1);
+                if (filteredMessages.length === 0 && !messagesLoadError) {
+                  return (
+                    <div className="emptyChat">
+                      <p className="emptyChatTitle">No messages yet</p>
+                      <p className="emptyChatDesc">Be the first to say something in this room</p>
+                    </div>
+                  );
+                }
+                return filteredMessages.map((msg, i) => {
                 const isOwn = msg.sender_id === user?.id;
                 const showAvatar = i === 0 || filteredMessages[i - 1]?.sender_id !== msg.sender_id;
                 const reactions = msg.reactions || [];
@@ -1053,7 +1140,8 @@ export default function ChatPage() {
                     onTouchEnd={clearLongPress}
                     onTouchMove={clearLongPress}
                   >
-                    {!isOwn && showAvatar ? (
+                    {!isOwn && (
+                      showAvatar ? (
                       msg.avatar_url ? (
                         <button
                           onClick={() => activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
@@ -1074,14 +1162,14 @@ export default function ChatPage() {
                       )
                     ) : (
                       <div className="msgAvatarSpacer" />
-                    )}
+                    ))}
 
-                    <div className="msgBlock">
-                      {showAvatar && (
-                        <div className={`msgMeta ${isOwn ? 'isOwn' : ''}`}>
+                    <div className={`msgBlock ${isOwn ? 'isOwn' : ''}`}>
+                      {showAvatar && !isOwn && (
+                        <div className="msgMeta">
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                             <span className="msgName">{msg.display_name}</span>
-                            {!!msg.is_admin && <span style={{ fontSize: '10px', fontWeight: '600', color: '#0095f6', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Admin</span>}
+                            {!!msg.is_admin && <span className="adminBadge">Admin</span>}
                           </div>
                           <span className="msgTime">{formatTime(msg.created_at)}</span>
                         </div>
@@ -1168,9 +1256,11 @@ export default function ChatPage() {
                             <div className="replyQuoteText">{replyTo.content}</div>
                           </div>
                         )}
-                        <div className="msgContent">
-                          {msg.content}
-                        </div>
+                        {msg.content_type === 'audio' ? (
+                          <VoiceMessagePlayer src={msg.content} duration={msg.audio_duration} isOwn={isOwn} />
+                        ) : (
+                          <div className="msgContent">{msg.content}</div>
+                        )}
                         </div>
                       </div>
                       {reactions.length > 0 && (
@@ -1191,7 +1281,8 @@ export default function ChatPage() {
                     </div>
                   </div>
                 );
-              })}
+              });
+              })()}
               </div>
               <div ref={messagesEndRef} />
             </div>
@@ -1228,34 +1319,60 @@ export default function ChatPage() {
                 </div>
               )}
               <form onSubmit={sendMessage} className="inputForm">
-                <div className="inputBar">
-                  <button
-                    type="button"
-                    className="emojiBtn"
-                    title="Emoji"
-                    onClick={() => setInputEmojiPicker(!inputEmojiPicker)}
-                  >
-                    <Smile className="lcIconEmoji" />
-                  </button>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
-                    placeholder="Message..."
-                    className="inputField"
-                    maxLength={MAX_MESSAGE_LENGTH}
+                {showVoiceRecorder ? (
+                  <VoiceRecorderBar
+                    onSend={(blob, duration) => void sendVoicePayload(blob, duration)}
+                    onCancel={() => setShowVoiceRecorder(false)}
+                    uploading={uploadingVoice}
                   />
-                  {inputValue.trim() && (
+                ) : (
+                  <div className="inputBar">
                     <button
-                      type="submit"
-                      className="sendBtn"
-                      disabled={cooldownSeconds > 0}
+                      type="button"
+                      className="emojiBtn"
+                      title="Emoji"
+                      onClick={() => setInputEmojiPicker(!inputEmojiPicker)}
+                      disabled={uploadingVoice}
                     >
-                      Send
+                      <Smile className="lcIconEmoji" />
                     </button>
-                  )}
-                </div>
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
+                      placeholder="Message..."
+                      className="inputField"
+                      maxLength={MAX_MESSAGE_LENGTH}
+                      disabled={uploadingVoice}
+                    />
+                    {uploadingVoice ? (
+                      <span className="voiceUploadLabel">Sending…</span>
+                    ) : inputValue.trim() ? (
+                      <button
+                        type="submit"
+                        className="sendBtn"
+                        disabled={cooldownSeconds > 0}
+                      >
+                        Send
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="micBtn"
+                        onClick={() => {
+                          if (uploadingVoice || cooldownSeconds > 0) return;
+                          setSendError('');
+                          setShowVoiceRecorder(true);
+                        }}
+                        disabled={cooldownSeconds > 0}
+                        title="Voice message"
+                      >
+                        <Mic size={20} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </form>
             </div>
           </>
@@ -1333,17 +1450,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Show online panel button when hidden */}
-      {chatOpen && onlineUsers.length > 0 && !showOnlinePanel && (
-        <button
-          className="showOnlineBtn"
-          onClick={() => setShowOnlinePanel(true)}
-          title="Show online users"
-        >
-          <Eye size={20} />
-        </button>
-      )}
-
       {moreMenu && (() => {
         const msg = getMessageById(moreMenu.messageId);
         if (!msg) return null;
@@ -1358,7 +1464,7 @@ export default function ChatPage() {
         const menuY = Math.min(moreMenu.y, window.innerHeight - 220);
 
         const copyText = async () => {
-          const text = msg.is_deleted ? '' : (msg.content || '');
+          const text = msg.is_deleted ? '' : (msg.content_type === 'audio' ? 'Voice message' : (msg.content || ''));
           try {
             await navigator.clipboard.writeText(text);
           } catch {
@@ -1367,8 +1473,13 @@ export default function ChatPage() {
         };
 
         return (
-          <div className="moreMenu" style={{ left: menuX, top: menuY }} onMouseDown={(e) => e.stopPropagation()}>
-            <button className="moreItem" type="button" onClick={() => { void copyText(); setMoreMenu(null); }}>Copy</button>
+          <>
+            <div className="contextMenuBackdrop" onClick={() => setMoreMenu(null)} onMouseDown={(e) => e.stopPropagation()} />
+            <div className="moreMenu" style={{ left: menuX, top: menuY }} onMouseDown={(e) => e.stopPropagation()}>
+            <button className="moreItem" type="button" onClick={() => { void copyText(); setMoreMenu(null); }}>
+              <Copy size={18} className="moreItemIcon" />
+              <span>Copy</span>
+            </button>
             {canPin && (
               <button className="moreItem" type="button" onClick={() => { 
                 if (socket) {
@@ -1379,10 +1490,16 @@ export default function ChatPage() {
                   }
                 }
                 setMoreMenu(null);
-              }}>{isPinned ? '📌 Unpin Message' : '📌 Pin Message'}</button>
+              }}>
+                <Pin size={18} className="moreItemIcon" />
+                <span>{isPinned ? 'Unpin message' : 'Pin message'}</span>
+              </button>
             )}
             {canDelete && (
-              <button className="moreItem danger" type="button" onClick={() => { deleteMessage(msg.id); setMoreMenu(null); }}>Unsend</button>
+              <button className="moreItem danger" type="button" onClick={() => { deleteMessage(msg.id); setMoreMenu(null); }}>
+                <Trash2 size={18} className="moreItemIcon" />
+                <span>Unsend</span>
+              </button>
             )}
             {canReport && (
               <>
@@ -1395,7 +1512,8 @@ export default function ChatPage() {
                     setMoreMenu(null);
                   }}
                 >
-                  Report message
+                  <Flag size={18} className="moreItemIcon" />
+                  <span>Report message</span>
                 </button>
                 <button
                   className="moreItem"
@@ -1406,12 +1524,16 @@ export default function ChatPage() {
                     setMoreMenu(null);
                   }}
                 >
-                  Report user
+                  <Flag size={18} className="moreItemIcon" />
+                  <span>Report user</span>
                 </button>
               </>
             )}
             {canAdminDelete && (
-              <button className="moreItem danger" type="button" onClick={() => { deleteMessage(msg.id); setMoreMenu(null); }}>Delete message (admin)</button>
+              <button className="moreItem danger" type="button" onClick={() => { deleteMessage(msg.id); setMoreMenu(null); }}>
+                <Trash2 size={18} className="moreItemIcon" />
+                <span>Delete message (admin)</span>
+              </button>
             )}
             {canAdminBan && (
               <button
@@ -1422,7 +1544,8 @@ export default function ChatPage() {
                   setMoreMenu(null);
                 }}
               >
-                Ban user (admin)
+                <Ban size={18} className="moreItemIcon" />
+                <span>Ban user (admin)</span>
               </button>
             )}
             {canAdminBan && (
@@ -1434,10 +1557,12 @@ export default function ChatPage() {
                   setMoreMenu(null);
                 }}
               >
-                Warn user (admin)
+                <AlertTriangle size={18} className="moreItemIcon" />
+                <span>Warn user (admin)</span>
               </button>
             )}
           </div>
+          </>
         );
       })()}
 
