@@ -74,7 +74,7 @@ export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
         console.log('[Settings] Adding email:', newEmail);
         try {
           // Update email in Supabase via server admin API
-          const response = await api('/me/update-email', {
+          const response = await api<{ error?: string }>('/me/update-email', {
             method: 'POST',
             token: token || '',
             body: { email: newEmail },

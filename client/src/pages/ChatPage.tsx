@@ -158,7 +158,7 @@ export default function ChatPage() {
   const loadRoomMessages = useCallback(async (roomId: string) => {
     setMessagesLoadError('');
     try {
-      const msgs = (await api(`/rooms/${roomId}/messages`, { token })) as Message[];
+      const msgs = await api<Message[]>(`/rooms/${roomId}/messages`, { token });
       setMessages(msgs);
       console.log('[Chat] Loaded message history', { roomId, count: msgs.length });
       setTimeout(scrollToBottom, 100);
@@ -173,9 +173,8 @@ export default function ChatPage() {
   useEffect(() => {
     if (!token) return;
     setRoomsLoadError('');
-    api('/rooms', { token })
-      .then((data) => {
-        const list = data as Room[];
+    api<Room[]>('/rooms', { token })
+      .then((list) => {
         setRooms(list);
         console.log('[Chat] Loaded rooms', { count: list.length });
       })
@@ -205,7 +204,7 @@ export default function ChatPage() {
   // Load DMs
   useEffect(() => {
     if (activeTab === 'dms') {
-      api('/dms', { token }).then(setDmConversations).catch(console.error);
+      api<DMConversation[]>('/dms', { token }).then(setDmConversations).catch(console.error);
     }
   }, [activeTab, token]);
 
@@ -226,10 +225,10 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedDM) return;
 
-    api(`/dms/${selectedDM.other_id}/messages`, { token })
+    api<Message[]>(`/dms/${selectedDM.other_id}/messages`, { token })
       .then((msgs) => {
-        setDmMessages(msgs as Message[]);
-        console.log('[Chat] Loaded DM history', { userId: selectedDM.other_id, count: (msgs as Message[]).length });
+        setDmMessages(msgs);
+        console.log('[Chat] Loaded DM history', { userId: selectedDM.other_id, count: msgs.length });
         setTimeout(scrollToBottom, 100);
       })
       .catch((err) => {
@@ -264,7 +263,7 @@ export default function ChatPage() {
       }
       // Refresh DM conversations list so new convos appear
       if (token) {
-        api('/dms', { token }).then(setDmConversations).catch(console.error);
+        api<DMConversation[]>('/dms', { token }).then(setDmConversations).catch(console.error);
       }
     };
 
@@ -287,7 +286,7 @@ export default function ChatPage() {
         return exists ? prev : [newConvo, ...prev];
       });
       if (token) {
-        api('/dms', { token }).then(setDmConversations).catch(console.error);
+        api<DMConversation[]>('/dms', { token }).then(setDmConversations).catch(console.error);
       }
     };
 
@@ -568,7 +567,10 @@ export default function ChatPage() {
     }
     setSearchingUsers(true);
     try {
-      const results = await api(`/users/search?q=${encodeURIComponent(query.trim())}`, { token });
+      const results = await api<{ id: string; displayName: string; avatarColor: string }[]>(
+        `/users/search?q=${encodeURIComponent(query.trim())}`,
+        { token }
+      );
       setUserSearchResults(results);
     } catch (err) {
       console.error('User search error:', err);
@@ -612,7 +614,7 @@ export default function ChatPage() {
   const loadPinnedMessages = async (roomId: string) => {
     if (!token) return;
     try {
-      const data = await api(`/rooms/${roomId}/pinned`, { token });
+      const data = await api<any[]>(`/rooms/${roomId}/pinned`, { token });
       setPinnedMessages(data);
     } catch (err) {
       console.error('Load pinned messages error:', err);

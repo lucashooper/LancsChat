@@ -6,7 +6,7 @@ interface RequestOptions {
   token?: string | null;
 }
 
-export async function api(endpoint: string, options: RequestOptions = {}) {
+export async function api<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, token } = options;
 
   const headers: Record<string, string> = {
@@ -23,23 +23,24 @@ export async function api(endpoint: string, options: RequestOptions = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  let data: Record<string, unknown> = {};
+  let data: unknown = {};
   const text = await res.text();
   if (text) {
     try {
-      data = JSON.parse(text) as Record<string, unknown>;
+      data = JSON.parse(text);
     } catch {
       throw new Error(`Invalid response from server (${res.status})`);
     }
   }
 
   if (!res.ok) {
-    const msg = typeof data.error === 'string' ? data.error : `Request failed (${res.status})`;
+    const errBody = data as Record<string, unknown>;
+    const msg = typeof errBody.error === 'string' ? errBody.error : `Request failed (${res.status})`;
     console.error(`[API] ${method} ${endpoint} → ${res.status}:`, msg);
     throw new Error(msg);
   }
 
-  return data;
+  return data as T;
 }
 
 export const API_BASE = API_URL;

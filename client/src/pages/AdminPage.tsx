@@ -123,13 +123,13 @@ export default function AdminPage() {
     setError('');
     try {
       if (tab === 'users') {
-        const rows = await api('/admin/users', { token });
+        const rows = await api<AdminUserRow[]>('/admin/users', { token });
         setUsers(rows);
       } else if (tab === 'reports') {
-        const rows = await api('/admin/reports', { token });
+        const rows = await api<ReportRow[]>('/admin/reports', { token });
         setReports(rows);
       } else if (tab === 'deleted') {
-        const rows = await api('/admin/deleted-messages', { token });
+        const rows = await api<DeletedMessageRow[]>('/admin/deleted-messages', { token });
         setDeleted(rows);
       } else if (tab === 'feedback') {
         const { data, error: fetchError } = await supabase
@@ -142,10 +142,10 @@ export default function AdminPage() {
         }
         setFeedback(data || []);
       } else if (tab === 'unban-requests') {
-        const rows = await api('/admin/unban-requests', { token });
+        const rows = await api<UnbanRequestRow[]>('/admin/unban-requests', { token });
         setUnbanRequests(rows);
       } else if (tab === 'stats') {
-        const data = await api('/admin/stats', { token });
+        const data = await api<StatsData>('/admin/stats', { token });
         setStatsData(data);
       }
     } catch (e) {
