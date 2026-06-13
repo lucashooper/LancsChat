@@ -16,6 +16,7 @@ export async function uploadVoiceMessage(userId: string, blob: Blob): Promise<st
   const { error } = await supabase.storage.from(VOICE_BUCKET).upload(filePath, blob, {
     contentType: blob.type || 'audio/webm',
     upsert: false,
+    cacheControl: '604800',
   });
 
   if (error) {

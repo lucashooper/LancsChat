@@ -10,6 +10,7 @@ const { Resend } = require('resend');
 const db = require('./db');
 const { getBoostedOnlineUsers, startPresenceRotation } = require('./presenceBoost');
 const { MAX_MESSAGE_LENGTH, MAX_VOICE_DURATION_SECONDS } = require('./constants');
+const { isEmailAllowed, sanitizeAvatarUrl, isValidVoiceMessageUrl } = require('./validators');
 
 // Initialize Resend for sending emails
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -21,6 +22,11 @@ if (process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || proces
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
   );
+}
+
+let supabaseAnon = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+  supabaseAnon = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 }
 
 const app = express();
@@ -221,6 +227,11 @@ function decodeSupabaseToken(token) {
 
 // Ensure user exists in our local DB (sync from Supabase)
 function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatarUrl) {
+  const safeAvatarUrl = sanitizeAvatarUrl(avatarUrl, supabaseUserId);
+  if (avatarUrl && !safeAvatarUrl) {
+    console.warn('[ensureLocalUser] Rejected invalid avatar URL for', supabaseUserId);
+  }
+
   let user = db.prepare('SELECT id, email, display_name, avatar_color, avatar_url, is_admin, is_banned, has_seen_intro FROM users WHERE id = ?').get(supabaseUserId);
   if (!user) {
     console.log('[ensureLocalUser] Creating new user:', supabaseUserId);
@@ -232,8 +243,8 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
     db.prepare(`
       INSERT INTO users (id, email, password_hash, display_name, avatar_color, avatar_url, is_verified, is_admin)
       VALUES (?, ?, '', ?, ?, ?, 0, ?)
-    `).run(supabaseUserId, safeEmail, name, color, avatarUrl || null, isAdmin);
-    user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: avatarUrl || null, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
+    `).run(supabaseUserId, safeEmail, name, color, safeAvatarUrl, isAdmin);
+    user = { id: supabaseUserId, email: safeEmail, display_name: name, avatar_color: color, avatar_url: safeAvatarUrl, is_admin: isAdmin, is_banned: 0, has_seen_intro: 0 };
     for (const staleId of staleUserIds) {
       mergeUserInto(supabaseUserId, staleId);
     }
@@ -247,10 +258,13 @@ function ensureLocalUser(supabaseUserId, email, displayName, avatarColor, avatar
       db.prepare('UPDATE users SET avatar_color = ? WHERE id = ?').run(avatarColor, supabaseUserId);
       user.avatar_color = avatarColor;
     }
-    if (avatarUrl !== undefined && avatarUrl !== user.avatar_url) {
-      console.log('[ensureLocalUser] Updating avatar_url');
-      db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(avatarUrl, supabaseUserId);
-      user.avatar_url = avatarUrl;
+    if (avatarUrl !== undefined) {
+      const nextAvatar = safeAvatarUrl;
+      if (nextAvatar !== user.avatar_url) {
+        console.log('[ensureLocalUser] Updating avatar_url');
+        db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(nextAvatar, supabaseUserId);
+        user.avatar_url = nextAvatar;
+      }
     }
     const safeEmail = (email || '').toLowerCase();
     // Only update email if DB has a placeholder email (noemail.lancschat.lol)
@@ -332,13 +346,7 @@ function validateMessageContent(content) {
 }
 
 function isAllowedVoiceUrl(url) {
-  try {
-    const u = new URL(url);
-    if (u.protocol !== 'https:') return false;
-    return u.pathname.includes('/voice-messages/');
-  } catch {
-    return false;
-  }
+  return isValidVoiceMessageUrl(url);
 }
 
 function validateIncomingMessage(data) {
@@ -462,6 +470,66 @@ function requireAdmin(req, res, next) {
   if (!row || !row.is_admin) return res.status(403).json({ error: 'Admin only' });
   next();
 }
+
+// Server-side signup — enforces email domain before Supabase creates the account
+app.post('/api/auth/signup', async (req, res) => {
+  if (!supabaseAnon) return res.status(503).json({ error: 'Auth service unavailable' });
+
+  const { email, password, displayName, redirectTo } = req.body || {};
+  const allowed = isEmailAllowed(email);
+  if (!allowed.ok) return res.status(400).json({ error: allowed.error });
+
+  if (!password || typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  if (!displayName || typeof displayName !== 'string' || !displayName.trim()) {
+    return res.status(400).json({ error: 'Display name is required' });
+  }
+  if (displayName.trim().length > 50) {
+    return res.status(400).json({ error: 'Display name must be 50 characters or less' });
+  }
+
+  const clientUrl = process.env.CLIENT_URL || 'https://lancschat.lol';
+  const { data, error } = await supabaseAnon.auth.signUp({
+    email: allowed.email,
+    password,
+    options: {
+      data: {
+        display_name: displayName.trim(),
+        has_real_email: true,
+      },
+      emailRedirectTo: redirectTo || clientUrl,
+    },
+  });
+
+  if (error) {
+    console.error('[signup] Supabase error:', error.message);
+    return res.status(400).json({ error: error.message });
+  }
+
+  res.json({ user: data.user, session: data.session });
+});
+
+// Supabase Auth Hook: Before User Created — blocks direct client signups that bypass our API.
+// Configure in Supabase Dashboard → Authentication → Hooks → Before user created
+app.post('/api/auth/before-user-created', (req, res) => {
+  const secret = process.env.AUTH_HOOK_SECRET;
+  if (secret) {
+    const header = req.headers['x-supabase-hook-secret'] || req.headers.authorization;
+    if (header !== secret && header !== `Bearer ${secret}`) {
+      return res.status(401).json({ error: { message: 'Unauthorized', http_code: 401 } });
+    }
+  }
+
+  const email = req.body?.user?.email || req.body?.email;
+  const allowed = isEmailAllowed(email);
+  if (!allowed.ok) {
+    return res.status(400).json({
+      error: { message: allowed.error, http_code: 400 },
+    });
+  }
+  return res.json({});
+});
 
 // Auto sign-in for Safe Links bypass: when Safe Links pre-confirms the email we generate
 // a server-side magic link and return it so the client can redirect without a password.
@@ -679,8 +747,13 @@ app.post('/api/me/update-email', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Valid email is required' });
   }
 
+  const allowed = isEmailAllowed(email);
+  if (!allowed.ok) {
+    return res.status(400).json({ error: allowed.error });
+  }
+
   try {
-    const newEmail = email.toLowerCase().trim();
+    const newEmail = allowed.email;
     console.log('[update-email] Processing email update for user:', req.userId, 'to:', newEmail);
 
     if (!resend) {
@@ -1313,36 +1386,61 @@ app.get('/api/admin/deleted-messages', authMiddleware, (req, res) => {
   })));
 });
 
-// Admin: get all feedback from Supabase
+// Submit feedback (server-side only — never expose emails via client RLS)
+app.post('/api/feedback', authMiddleware, async (req, res) => {
+  if (!supabase) return res.status(503).json({ error: 'Feedback service unavailable' });
+
+  const { feedbackType, feedbackText } = req.body || {};
+  const validTypes = ['feature_request', 'bug_report', 'other'];
+  if (!validTypes.includes(feedbackType)) {
+    return res.status(400).json({ error: 'Invalid feedback type' });
+  }
+  const text = typeof feedbackText === 'string' ? feedbackText.trim() : '';
+  if (!text) return res.status(400).json({ error: 'Feedback text is required' });
+  if (text.length > 5000) return res.status(400).json({ error: 'Feedback is too long' });
+
+  const u = ensureLocalUser(
+    req.userId,
+    req.decoded.email,
+    req.userMeta.display_name,
+    req.userMeta.avatar_color,
+    req.userMeta.avatar_url
+  );
+
+  const { error } = await supabase.from('feedback').insert({
+    user_id: req.userId,
+    user_email: u.email,
+    user_display_name: u.display_name,
+    feedback_type: feedbackType,
+    feedback_text: text,
+  });
+
+  if (error) {
+    console.error('[feedback] Insert error:', error.message);
+    return res.status(500).json({ error: 'Failed to submit feedback' });
+  }
+
+  res.json({ ok: true });
+});
+
+// Admin: get all feedback from Supabase (service role — admin only)
 app.get('/api/admin/feedback', authMiddleware, async (req, res) => {
   const u = ensureLocalUser(req.userId, req.decoded.email, req.userMeta.display_name, req.userMeta.avatar_color, req.userMeta.avatar_url);
   if (!u.is_admin) return res.status(403).json({ error: 'Forbidden' });
+  if (!supabase) return res.json([]);
 
   try {
-    const { createClient } = require('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
-    );
-    
     const { data, error } = await supabase
       .from('feedback')
-      .select('*')
+      .select('id, user_id, user_email, user_display_name, feedback_type, feedback_text, created_at, status')
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       console.error('Supabase feedback fetch error:', error);
       return res.json([]);
     }
-    
-    res.json(data.map(f => ({
-      id: f.id,
-      userId: f.user_id,
-      displayName: f.display_name,
-      type: f.type,
-      content: f.content,
-      createdAt: f.created_at,
-    })));
+
+    res.json(data || []);
   } catch (err) {
     console.error('Feedback fetch error:', err);
     res.json([]);

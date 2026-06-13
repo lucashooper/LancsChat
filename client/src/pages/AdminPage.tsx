@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
-import { supabase } from '../lib/supabase';
 import './AdminPage.css';
 
 type AdminTab = 'stats' | 'users' | 'reports' | 'deleted' | 'feedback' | 'unban-requests' | 'settings';
@@ -132,15 +131,8 @@ export default function AdminPage() {
         const rows = await api<DeletedMessageRow[]>('/admin/deleted-messages', { token });
         setDeleted(rows);
       } else if (tab === 'feedback') {
-        const { data, error: fetchError } = await supabase
-          .from('feedback')
-          .select('*')
-          .order('created_at', { ascending: false });
-        
-        if (fetchError) {
-          throw new Error('Failed to fetch feedback: ' + fetchError.message);
-        }
-        setFeedback(data || []);
+        const rows = await api<FeedbackRow[]>('/admin/feedback', { token });
+        setFeedback(rows);
       } else if (tab === 'unban-requests') {
         const rows = await api<UnbanRequestRow[]>('/admin/unban-requests', { token });
         setUnbanRequests(rows);

@@ -185,6 +185,7 @@ export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
         .upload(filePath, file, {
           upsert: true,
           contentType: file.type || 'image/png',
+          cacheControl: '86400',
         });
 
       if (uploadError) throw uploadError;
@@ -216,24 +217,22 @@ export default function SettingsPage({ onClose }: SettingsPageProps = {}) {
       return;
     }
 
+    if (!token) {
+      setError('Not signed in');
+      return;
+    }
+
     setSendingFeedback(true);
     setError('');
     try {
-      const { error: insertError } = await supabase
-        .from('feedback')
-        .insert({
-          user_id: user?.id,
-          user_email: user?.email,
-          user_display_name: user?.displayName,
-          feedback_type: feedbackType,
-          feedback_text: feedback.trim(),
-        });
-
-      if (insertError) {
-        console.error('Failed to submit feedback:', insertError);
-        setError('Failed to submit feedback. Please try again.');
-        return;
-      }
+      await api('/feedback', {
+        token,
+        method: 'POST',
+        body: {
+          feedbackType,
+          feedbackText: feedback.trim(),
+        },
+      });
 
       setFeedback('');
       setFeedbackSuccess(true);

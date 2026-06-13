@@ -186,19 +186,21 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: signUpEmail,
-        password,
-        options: {
-          data: {
-            display_name: displayName.trim(),
-            has_real_email: true,
-          },
-          emailRedirectTo: getAuthRedirectUrl(),
-        },
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+      const res = await fetch(`${apiUrl}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: signUpEmail,
+          password,
+          displayName: displayName.trim(),
+          redirectTo: getAuthRedirectUrl(),
+        }),
       });
-
-      if (signUpError) throw signUpError;
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Sign up failed');
+      }
 
       // Supabase may return a session before email is confirmed — sign out so they
       // must verify first (App shows EmailVerificationGate if they log in early).

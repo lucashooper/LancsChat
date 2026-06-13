@@ -5,6 +5,7 @@ import { useSocket } from '../context/SocketContext';
 import { api } from '../api';
 import { MAX_MESSAGE_LENGTH } from '../lib/limits';
 import { uploadVoiceMessage } from '../lib/voiceMessage';
+import { isValidAvatarUrl } from '../lib/mediaUrls';
 import VoiceMessagePlayer from '../components/VoiceMessagePlayer';
 import VoiceRecorderBar from '../components/VoiceRecorderBar';
 import { RoomIcon } from '../lib/roomIcons';
@@ -16,6 +17,10 @@ import {
 import SettingsPage from './SettingsPage';
 import { supabase } from '../lib/supabase';
 import './ChatPage.css';
+
+function safeAvatarUrl(url: string | null | undefined, userId: string) {
+  return url && isValidAvatarUrl(url, userId) ? url : null;
+}
 
 interface Room {
   id: string;
@@ -790,11 +795,13 @@ export default function ChatPage() {
 
           <div className="sidebarBottom">
             <div className="sidebarUserRow">
-              {user && user.avatarUrl ? (
+              {user && safeAvatarUrl(user.avatarUrl, user.id) ? (
                 <img
-                  src={user.avatarUrl}
+                  src={safeAvatarUrl(user.avatarUrl, user.id)!}
                   alt={user.displayName}
                   className="sidebarUserAvatarImg"
+                  loading="lazy"
+                  decoding="async"
                 />
               ) : (
                 <div
@@ -875,11 +882,13 @@ export default function ChatPage() {
         {/* Bottom: User + Logout */}
         <div className="sidebarBottom">
           <div className="sidebarUserRow">
-            {user && user.avatarUrl ? (
+            {user && safeAvatarUrl(user.avatarUrl, user.id) ? (
               <img
-                src={user.avatarUrl}
+                src={safeAvatarUrl(user.avatarUrl, user.id)!}
                 alt={user.displayName}
                 className="sidebarUserAvatarImg"
+                loading="lazy"
+                decoding="async"
               />
             ) : (
               <div
@@ -982,12 +991,14 @@ export default function ChatPage() {
                       }}
                       className={`listItem ${selectedDM?.other_id === convo.other_id && chatOpen ? 'isActive' : ''} ${convo.has_unread ? 'hasUnread' : ''}`}
                     >
-                      {convo.other_avatar_url ? (
+                      {safeAvatarUrl(convo.other_avatar_url, convo.other_id) ? (
                         <div className="dmAvatar" style={{ overflow: 'hidden' }}>
                           <img
-                            src={convo.other_avatar_url}
+                            src={safeAvatarUrl(convo.other_avatar_url, convo.other_id)!}
                             alt={convo.other_name}
                             className="dmAvatarImg"
+                            loading="lazy"
+                            decoding="async"
                           />
                         </div>
                       ) : (
@@ -1142,13 +1153,19 @@ export default function ChatPage() {
                   >
                     {!isOwn && (
                       showAvatar ? (
-                      msg.avatar_url ? (
+                      safeAvatarUrl(msg.avatar_url, msg.sender_id) ? (
                         <button
                           onClick={() => activeTab === 'rooms' && startDMWithUser(msg.sender_id)}
                           className={`msgAvatarBtn ${activeTab === 'rooms' ? 'isClickable' : ''}`}
                           title={`DM ${msg.display_name}`}
                         >
-                          <img src={msg.avatar_url} alt={msg.display_name} className="msgAvatarImg" />
+                          <img
+                            src={safeAvatarUrl(msg.avatar_url, msg.sender_id)!}
+                            alt={msg.display_name}
+                            className="msgAvatarImg"
+                            loading="lazy"
+                            decoding="async"
+                          />
                         </button>
                       ) : (
                         <button
@@ -1414,11 +1431,13 @@ export default function ChatPage() {
               return (
                 <div key={onlineUser.id} className={`onlineUserItem ${isMe ? 'isMe' : ''}`}>
                   <div className="onlineAvatarWrap">
-                    {onlineUser.avatarUrl ? (
+                    {safeAvatarUrl(onlineUser.avatarUrl, onlineUser.id) ? (
                       <img
-                        src={onlineUser.avatarUrl}
+                        src={safeAvatarUrl(onlineUser.avatarUrl, onlineUser.id)!}
                         alt={onlineUser.displayName}
                         className="onlineUserAvatar"
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div
@@ -1771,8 +1790,14 @@ export default function ChatPage() {
                   <div key={pin.id} className="pinnedItem">
                     <div onClick={() => jumpToMessage(pin.message_id)} style={{ flex: 1, cursor: 'pointer' }}>
                       <div className="pinnedItemHeader">
-                        {pin.avatar_url ? (
-                          <img src={pin.avatar_url} alt={pin.display_name} className="pinnedAvatar" />
+                        {safeAvatarUrl(pin.avatar_url, pin.sender_id) ? (
+                          <img
+                            src={safeAvatarUrl(pin.avatar_url, pin.sender_id)!}
+                            alt={pin.display_name}
+                            className="pinnedAvatar"
+                            loading="lazy"
+                            decoding="async"
+                          />
                         ) : (
                           <div className="pinnedAvatar" style={{ backgroundColor: pin.avatar_color }}>
                             {pin.display_name?.charAt(0)}
